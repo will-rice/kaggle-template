@@ -4,7 +4,7 @@
 
 `kaggle-template` is a public, reusable GitHub template instantiated once per Kaggle competition. It is modality-agnostic from the first commit and supports the same Python package and command-line workflows on local and remote machines, including Kaggle CLI operations.
 
-The template adopts the tooling conventions of `will-rice/ml-template`:
+The template adopts the following tooling conventions:
 
 - Python 3.12 or newer, managed with `uv`
 - Pydantic for typed configuration and records
