@@ -121,3 +121,25 @@ Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>
 - Confirmed the declared `competition` package target now exists as an importable package.
 - Confirmed `ProjectPaths` coverage now asserts every resolved field, not just root and data.
 - Kept the change minimal: no behavioral expansion beyond importability/buildability and coverage.
+
+## Metadata Ordering Ruling
+### Files
+- `docs/superpowers/plans/2026-09-23-kaggle-template.md`
+- `pyproject.toml`
+- `src/competition/__init__.py`
+- `src/kaggle_template/cli.py`
+- `tests/test_config_paths.py`
+- `.superpowers/sdd/task-1-report.md`
+
+### Commands and results
+- `git add docs/superpowers/plans/2026-09-23-kaggle-template.md && git commit -m "docs: correct metadata ordering in plan"` → passed; created the plan-only correction commit
+- `uv run pytest tests/test_config_paths.py -v` → passed; 7 tests passed
+- `uv run pytest -v` → passed; 21 tests passed
+- `uv build` → passed; built `dist/kaggle_template-0.1.0.tar.gz` and `dist/kaggle_template-0.1.0-py3-none-any.whl`
+- `uv run ruff check .` → passed
+- `git --no-pager diff --check` → passed
+- `git add pyproject.toml tests/test_config_paths.py src/competition/__init__.py src/kaggle_template/cli.py .superpowers/sdd/task-1-report.md && git commit --amend --no-edit` → passed; updated the implementation-correction commit
+
+### Commits
+- `docs: correct metadata ordering in plan`
+- `fix: remove premature task 1 metadata targets`

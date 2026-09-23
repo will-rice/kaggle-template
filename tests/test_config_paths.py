@@ -1,4 +1,3 @@
-from importlib import import_module
 from pathlib import Path
 
 import pytest
@@ -76,11 +75,3 @@ def test_rejects_path_outside_repository(tmp_path: Path) -> None:
     invalid = config.paths.model_copy(update={"data": "../outside"})
     with pytest.raises(ValueError, match="must stay within repository"):
         resolve_project_paths(tmp_path, invalid)
-
-
-def test_declared_entry_points_import() -> None:
-    competition = import_module("competition")
-    cli = import_module("kaggle_template.cli")
-
-    assert competition.__name__ == "competition"
-    assert hasattr(cli, "app")
