@@ -66,3 +66,20 @@ def test_rejects_duplicate_identifiers_even_when_sample_matches(tmp_path: Path) 
     frame.to_csv(candidate, index=False)
     with pytest.raises(ValueError, match="unique"):
         validate_submission(candidate, sample, "synthetic-playground", "id")
+
+
+def test_preserves_identifier_formatting_when_identifier_is_configured(
+    tmp_path: Path,
+) -> None:
+    sample = tmp_path / "sample_submission.csv"
+    candidate = tmp_path / "submission.csv"
+
+    pd.DataFrame({"id": ["001", "002"], "target": [0.0, 0.0]}).to_csv(sample, index=False)
+
+    pd.DataFrame({"id": ["1", "2"], "target": [1.0, 2.0]}).to_csv(candidate, index=False)
+    with pytest.raises(ValueError, match="identifier values or order do not match"):
+        validate_submission(candidate, sample, "synthetic-playground", "id")
+
+    pd.DataFrame({"id": ["001", "002"], "target": [1.0, 2.0]}).to_csv(candidate, index=False)
+    proof = validate_submission(candidate, sample, "synthetic-playground", "id")
+    assert proof.columns == ["id", "target"]

@@ -30,8 +30,9 @@ def validate_submission(
     if not sample.exists():
         raise FileNotFoundError(f"sample submission not found: {sample}")
 
-    expected = pd.read_csv(sample)
-    actual = pd.read_csv(candidate)
+    csv_kwargs = {"dtype": {identifier: str}} if identifier is not None else {}
+    expected = pd.read_csv(sample, **csv_kwargs)
+    actual = pd.read_csv(candidate, **csv_kwargs)
 
     if len(actual) != len(expected):
         raise ValueError(f"row count mismatch: expected {len(expected)}, got {len(actual)}")
