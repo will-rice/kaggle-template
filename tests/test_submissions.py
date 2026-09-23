@@ -58,6 +58,14 @@ def test_changed_file_invalidates_proof(files: tuple[Path, Path]) -> None:
         assert_submission_unchanged(candidate, proof)
 
 
+def test_changed_sample_invalidates_proof(files: tuple[Path, Path]) -> None:
+    sample, candidate = files
+    proof = validate_submission(candidate, sample, "synthetic-playground", "id")
+    sample.write_text("id,target\n10,0.0\n11,1.0\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="sample submission changed since validation"):
+        assert_submission_unchanged(candidate, proof, sample)
+
+
 def test_rejects_duplicate_identifiers_even_when_sample_matches(tmp_path: Path) -> None:
     sample = tmp_path / "sample_submission.csv"
     candidate = tmp_path / "submission.csv"

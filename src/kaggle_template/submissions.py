@@ -73,6 +73,18 @@ def validate_submission(
     )
 
 
-def assert_submission_unchanged(candidate: Path, proof: SubmissionProof) -> None:
+def assert_submission_unchanged(
+    candidate: Path,
+    proof: SubmissionProof,
+    sample: Path | None = None,
+) -> None:
+    if not candidate.exists():
+        raise FileNotFoundError(f"candidate submission not found: {candidate}")
     if sha256_file(candidate) != proof.candidate_sha256:
         raise ValueError("submission changed since validation")
+    if sample is None:
+        return
+    if not sample.exists():
+        raise FileNotFoundError(f"sample submission not found: {sample}")
+    if sha256_file(sample) != proof.sample_sha256:
+        raise ValueError("sample submission changed since validation")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -8,7 +9,7 @@ from typer.testing import CliRunner
 
 from kaggle_template.config import MetricDirection
 from kaggle_template.kaggle import KaggleError, SubmissionResult
-from kaggle_template.records import ArtifactManifest, ExperimentRecord
+from kaggle_template.records import ArtifactManifest, ExperimentRecord, sha256_file
 from kaggle_template.submissions import SubmissionProof
 
 runner = CliRunner()
@@ -41,11 +42,18 @@ submissions = "artifacts/submissions"
     )
 
 
-def _write_proof(candidate: Path) -> SubmissionProof:
+def _write_sample_submission(root: Path) -> Path:
+    sample = root / "data" / "sample_submission.csv"
+    sample.parent.mkdir(parents=True, exist_ok=True)
+    sample.write_text("id,target\n1,0.0\n", encoding="utf-8")
+    return sample
+
+
+def _write_proof(candidate: Path, sample: Path | None = None) -> SubmissionProof:
     proof = SubmissionProof(
         competition_slug="synthetic-playground",
-        sample_sha256="sample",
-        candidate_sha256=__import__("hashlib").sha256(candidate.read_bytes()).hexdigest(),
+        sample_sha256=sha256_file(sample) if sample is not None else "sample",
+        candidate_sha256=sha256_file(candidate),
         row_count=1,
         columns=["id", "target"],
         validated_at=datetime.fromisoformat("2026-09-23T12:00:00+00:00"),
@@ -84,8 +92,9 @@ def test_help_lists_exactly_four_workflow_commands() -> None:
     result = runner.invoke(app, ["--help"])
 
     assert result.exit_code == 0
-    for command in ("competition-init", "train", "predict", "submit"):
-        assert command in result.output
+    commands_section = result.output.split("│ --help", maxsplit=1)[-1]
+    command_names = re.findall(r"^│ ([a-z-]+)\s+│$", commands_section, flags=re.MULTILINE)
+    assert command_names == ["competition-init", "train", "predict", "submit"]
     assert "Usage" in result.output
 
 
@@ -98,6 +107,7 @@ def test_train_delegates_without_submitting(
     config_path = tmp_path / "configs" / "competition.toml"
     _write_config(config_path)
     submit_attempted = False
+    monkeypatch.chdir(tmp_path)
 
     def fail_client() -> object:
         nonlocal submit_attempted
@@ -144,6 +154,7 @@ def test_predict_delegates_without_submitting(
     config_path = tmp_path / "configs" / "competition.toml"
     _write_config(config_path)
     submit_attempted = False
+    monkeypatch.chdir(tmp_path)
 
     def fail_client() -> object:
         nonlocal submit_attempted
@@ -177,9 +188,11 @@ def test_submit_without_confirm_exits_without_external_call(
 
     config_path = tmp_path / "configs" / "competition.toml"
     _write_config(config_path)
+    _write_sample_submission(tmp_path)
+    monkeypatch.chdir(tmp_path)
     candidate = tmp_path / "submission.csv"
     candidate.write_text("id,target\n1,0.5\n", encoding="utf-8")
-    _write_proof(candidate)
+    _write_proof(candidate, tmp_path / "data" / "sample_submission.csv")
     client = FakeSubmitClient()
     monkeypatch.setattr("kaggle_template.cli.SubprocessKaggleClient", lambda: client)
 
@@ -213,9 +226,11 @@ def test_submit_displays_fields_and_calls_once_with_confirm(
 
     config_path = tmp_path / "configs" / "competition.toml"
     _write_config(config_path)
+    _write_sample_submission(tmp_path)
+    monkeypatch.chdir(tmp_path)
     candidate = tmp_path / "submission.csv"
     candidate.write_text("id,target\n1,0.5\n", encoding="utf-8")
-    _write_proof(candidate)
+    _write_proof(candidate, tmp_path / "data" / "sample_submission.csv")
     client = FakeSubmitClient()
     monkeypatch.setattr("kaggle_template.cli.SubprocessKaggleClient", lambda: client)
 
@@ -250,9 +265,11 @@ def test_submit_surfaces_kaggle_errors_without_recording_result(
 
     config_path = tmp_path / "configs" / "competition.toml"
     _write_config(config_path)
+    _write_sample_submission(tmp_path)
+    monkeypatch.chdir(tmp_path)
     candidate = tmp_path / "submission.csv"
     candidate.write_text("id,target\n1,0.5\n", encoding="utf-8")
-    _write_proof(candidate)
+    _write_proof(candidate, tmp_path / "data" / "sample_submission.csv")
     client = FakeSubmitClient(KaggleError("rules not accepted"))
     monkeypatch.setattr("kaggle_template.cli.SubprocessKaggleClient", lambda: client)
 
@@ -273,3 +290,183 @@ def test_submit_surfaces_kaggle_errors_without_recording_result(
     assert "Kaggle error: rules not accepted" in result.output
     assert client.calls == 1
     assert not candidate.with_suffix(".result.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("proof_content", "expected_reason"),
+    [
+        ("{not json}", "validation proof is malformed"),
+        ('{"competition_slug":"synthetic-playground"}', "validation proof is malformed"),
+    ],
+)
+def test_submit_rejects_malformed_proof_before_external_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    proof_content: str,
+    expected_reason: str,
+) -> None:
+    from kaggle_template.cli import app
+
+    config_path = tmp_path / "configs" / "competition.toml"
+    _write_config(config_path)
+    _write_sample_submission(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    candidate = tmp_path / "submission.csv"
+    candidate.write_text("id,target\n1,0.5\n", encoding="utf-8")
+    candidate.with_suffix(".validation.json").write_text(proof_content, encoding="utf-8")
+    client = FakeSubmitClient()
+    monkeypatch.setattr("kaggle_template.cli.SubprocessKaggleClient", lambda: client)
+
+    result = runner.invoke(
+        app,
+        [
+            "submit",
+            str(candidate),
+            "--message",
+            "baseline",
+            "--config",
+            str(config_path),
+            "--confirm",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert expected_reason in result.output
+    assert client.calls == 0
+    assert not candidate.with_suffix(".result.json").exists()
+
+
+def test_submit_rejects_changed_candidate_before_external_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from kaggle_template.cli import app
+
+    config_path = tmp_path / "configs" / "competition.toml"
+    _write_config(config_path)
+    _write_sample_submission(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    candidate = tmp_path / "submission.csv"
+    candidate.write_text("id,target\n1,0.5\n", encoding="utf-8")
+    _write_proof(candidate, tmp_path / "data" / "sample_submission.csv")
+    candidate.write_text("id,target\n1,0.7\n", encoding="utf-8")
+    client = FakeSubmitClient()
+    monkeypatch.setattr("kaggle_template.cli.SubprocessKaggleClient", lambda: client)
+
+    result = runner.invoke(
+        app,
+        [
+            "submit",
+            str(candidate),
+            "--message",
+            "baseline",
+            "--config",
+            str(config_path),
+            "--confirm",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "submission changed since validation" in result.output
+    assert client.calls == 0
+    assert not candidate.with_suffix(".result.json").exists()
+
+
+def test_submit_rejects_changed_sample_before_external_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from kaggle_template.cli import app
+
+    config_path = tmp_path / "configs" / "competition.toml"
+    _write_config(config_path)
+    sample = _write_sample_submission(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    candidate = tmp_path / "submission.csv"
+    candidate.write_text("id,target\n1,0.5\n", encoding="utf-8")
+    _write_proof(candidate, sample)
+    sample.write_text("id,target\n1,1.0\n", encoding="utf-8")
+    client = FakeSubmitClient()
+    monkeypatch.setattr("kaggle_template.cli.SubprocessKaggleClient", lambda: client)
+
+    result = runner.invoke(
+        app,
+        [
+            "submit",
+            str(candidate),
+            "--message",
+            "baseline",
+            "--config",
+            str(config_path),
+            "--confirm",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "sample submission changed since validation" in result.output
+    assert client.calls == 0
+    assert not candidate.with_suffix(".result.json").exists()
+
+
+def test_competition_init_rejects_slug_mismatch_without_initializing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from kaggle_template.cli import app
+
+    config_path = tmp_path / "configs" / "competition.toml"
+    _write_config(config_path)
+    initialized = False
+    client_constructed = False
+    monkeypatch.chdir(tmp_path)
+
+    def fail_initialize(*args: object, **kwargs: object) -> object:
+        nonlocal initialized
+        initialized = True
+        raise AssertionError("competition-init must stop before initialize on slug mismatch")
+
+    def fail_client() -> object:
+        nonlocal client_constructed
+        client_constructed = True
+        raise AssertionError("competition-init must not construct Kaggle client on slug mismatch")
+
+    monkeypatch.setattr("kaggle_template.cli.initialize_competition", fail_initialize)
+    monkeypatch.setattr("kaggle_template.cli.SubprocessKaggleClient", fail_client)
+
+    result = runner.invoke(
+        app,
+        ["competition-init", "different-competition", "--config", str(config_path)],
+    )
+
+    assert result.exit_code != 0
+    assert "Invalid value for slug" in result.output
+    assert "different-competition" in result.output
+    assert "synthetic-playground" in result.output
+    assert not initialized
+    assert not client_constructed
+
+
+def test_competition_init_surfaces_kaggle_failure_without_success_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from kaggle_template.cli import app
+
+    config_path = tmp_path / "configs" / "competition.toml"
+    _write_config(config_path)
+    monkeypatch.chdir(tmp_path)
+
+    def raise_kaggle_error(*args: object) -> object:
+        raise KaggleError("rules not accepted")
+
+    monkeypatch.setattr("kaggle_template.cli.SubprocessKaggleClient", lambda: object())
+    monkeypatch.setattr("kaggle_template.cli.initialize_competition", raise_kaggle_error)
+
+    result = runner.invoke(
+        app,
+        ["competition-init", "synthetic-playground", "--config", str(config_path)],
+    )
+
+    assert result.exit_code == 1
+    assert "Kaggle error: rules not accepted" in result.output
+    assert "Initialized" not in result.output

@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from pydantic import ValidationError
 
 from competition.predict import predict_competition
 from competition.train import train_competition
@@ -23,6 +24,31 @@ def _load_context(config_path: Path) -> tuple[CompetitionConfig, ProjectPaths]:
     config = load_config(config_path)
     paths = resolve_project_paths(Path.cwd(), config.paths)
     return config, paths
+
+
+def _load_submission_proof(proof_path: Path, config: CompetitionConfig) -> SubmissionProof:
+    try:
+        proof = SubmissionProof.model_validate_json(proof_path.read_text(encoding="utf-8"))
+    except ValidationError as error:
+        raise typer.BadParameter("validation proof is malformed", param_hint="file") from error
+
+    if proof.competition_slug != config.slug:
+        raise typer.BadParameter(
+            f"proof is for {proof.competition_slug!r}, not {config.slug!r}",
+            param_hint="file",
+        )
+    return proof
+
+
+def _assert_submission_is_current(
+    candidate: Path,
+    sample: Path,
+    proof: SubmissionProof,
+) -> None:
+    try:
+        assert_submission_unchanged(candidate, proof, sample)
+    except (FileNotFoundError, ValueError) as error:
+        raise typer.BadParameter(str(error), param_hint="file") from error
 
 
 @app.command("competition-init")
@@ -88,7 +114,7 @@ def submit(
         typer.Option("--config", exists=True, dir_okay=False, readable=True),
     ] = Path("configs/competition.toml"),
 ) -> None:
-    config, _paths = _load_context(config_path)
+    config, paths = _load_context(config_path)
     if not message.strip():
         raise typer.BadParameter("message must not be empty", param_hint="message")
     proof_path = file.with_suffix(".validation.json")
@@ -98,13 +124,8 @@ def submit(
             param_hint="file",
         )
 
-    proof = SubmissionProof.model_validate_json(proof_path.read_text(encoding="utf-8"))
-    if proof.competition_slug != config.slug:
-        raise typer.BadParameter(
-            f"proof is for {proof.competition_slug!r}, not {config.slug!r}",
-            param_hint="file",
-        )
-    assert_submission_unchanged(file, proof)
+    proof = _load_submission_proof(proof_path, config)
+    _assert_submission_is_current(file, paths.data / "sample_submission.csv", proof)
 
     typer.echo(f"Competition: {config.slug}")
     typer.echo(f"File: {file}")
