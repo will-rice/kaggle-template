@@ -1,3 +1,4 @@
+from importlib import import_module
 from pathlib import Path
 
 import pytest
@@ -64,6 +65,10 @@ def test_paths_are_absolute_and_contained(tmp_path: Path) -> None:
     paths = resolve_project_paths(tmp_path, config.paths)
     assert paths.root == tmp_path.resolve()
     assert paths.data == tmp_path.resolve() / "data"
+    assert paths.reports == tmp_path.resolve() / "reports"
+    assert paths.experiments == tmp_path.resolve() / "artifacts/experiments"
+    assert paths.predictions == tmp_path.resolve() / "artifacts/predictions"
+    assert paths.submissions == tmp_path.resolve() / "artifacts/submissions"
 
 
 def test_rejects_path_outside_repository(tmp_path: Path) -> None:
@@ -71,3 +76,11 @@ def test_rejects_path_outside_repository(tmp_path: Path) -> None:
     invalid = config.paths.model_copy(update={"data": "../outside"})
     with pytest.raises(ValueError, match="must stay within repository"):
         resolve_project_paths(tmp_path, invalid)
+
+
+def test_declared_entry_points_import() -> None:
+    competition = import_module("competition")
+    cli = import_module("kaggle_template.cli")
+
+    assert competition.__name__ == "competition"
+    assert hasattr(cli, "app")
