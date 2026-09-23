@@ -171,3 +171,5 @@ def test_readme_documents_workflow_boundaries_commands_and_submission_rules() ->
     assert "local or remote Python 3.12+ machines" in content
     assert "The framework never submits during training or prediction." in content
     assert "Only `submit` can submit" in content
+    assert "prediction columns must contain finite numeric values" in content
+    assert "first sample column is treated as the identifier" in content

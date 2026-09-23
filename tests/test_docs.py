@@ -83,5 +83,8 @@ def test_ci_and_precommit_cover_every_quality_gate() -> None:
         "uv run mypy",
         "uv run pytest",
         "uv run pre-commit run --all-files",
+        "uv run pytest tests/test_synthetic_workflow.py --disable-socket -v",
     ):
         assert command in workflow
+    pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+    assert '"pytest-socket' in pyproject

@@ -37,6 +37,6 @@ jobs:
       - name: Verify ignore contract
         run: uv run pytest tests/test_repository_contract.py::test_machine_artifacts_and_secrets_are_ignored -v
       - name: Verify synthetic workflow without network
-        run: uv run pytest tests/test_synthetic_workflow.py -v
+        run: uv run pytest tests/test_synthetic_workflow.py --disable-socket -v
       - name: Pre-commit
         run: uv run pre-commit run --all-files

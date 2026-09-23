@@ -40,7 +40,9 @@ uv run kaggle-template predict
 uv run kaggle-template submit artifacts/submissions/<run>.csv --message "<experiment and validation>" --confirm
 ```
 
-`train` records local artifacts and W&B results. `predict` generates and validates a candidate. The framework never submits during training or prediction. Only `submit` can submit, and it requires a current checksum-bound validation proof plus `--confirm`.
+`train` records local artifacts and W&B results. `predict` generates and validates a candidate. The framework never submits during training or prediction. Only `submit` can submit, and it requires a current checksum-bound validation proof plus `--confirm`. `submit` re-runs validation against the candidate and sample before calling Kaggle, and records the structured result (including failures) beside the candidate as `<run>.result.json`.
+
+Submission contract: under this framework all prediction columns must contain finite numeric values (no text labels, `NaN`, or infinity). When `identifier` is unset in `configs/competition.toml` and the sample submission has more than one column, the first sample column is treated as the identifier and must match the sample exactly in value, order, and uniqueness; a one-column sample is prediction-only.
 
 ## Local and Remote Execution
 

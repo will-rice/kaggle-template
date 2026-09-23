@@ -14,7 +14,7 @@ description: Generate, validate, inspect, and explicitly submit one Kaggle file.
 
 1. Run `uv run kaggle-template predict`.
 2. Inspect the candidate path and `.validation.json` proof.
-3. Confirm row count, columns, identifier order, uniqueness, finite predictions, sample checksum, and candidate checksum.
+3. Confirm row count, columns, identifier order, uniqueness, finite numeric predictions (the framework requires numeric prediction columns), sample checksum, and candidate checksum.
 4. Choose a message identifying the experiment and validation result.
 5. Display the competition, file, message, and validation result to the user.
 6. Submit only after explicit approval with `uv run kaggle-template submit <file> --message "<message>" --confirm`.

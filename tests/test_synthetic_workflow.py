@@ -1,4 +1,8 @@
+import socket
 from pathlib import Path
+
+import pytest
+from pytest_socket import SocketBlockedError
 
 from competition.predict import predict_competition
 from competition.train import train_competition
@@ -8,6 +12,14 @@ from kaggle_template.kaggle import CompetitionMetadata, KaggleClient, Submission
 from kaggle_template.paths import resolve_project_paths
 from kaggle_template.records import ArtifactManifest, ExperimentRecord
 from kaggle_template.submissions import assert_submission_unchanged
+
+pytestmark = pytest.mark.disable_socket
+
+
+@pytest.mark.filterwarnings("ignore:A test tried to use socket.socket")
+def test_synthetic_workflow_module_blocks_network_sockets() -> None:
+    with pytest.raises(SocketBlockedError):
+        socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 
 class SyntheticKaggleClient(KaggleClient):
