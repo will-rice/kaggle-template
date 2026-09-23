@@ -13,7 +13,7 @@ import json
 import os
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from constants import (
     DEFAULT_KERNEL_TIMEOUT_SECONDS,
@@ -25,7 +25,7 @@ from constants import (
 OUTPUT_SEPARATOR = "=" * OUTPUT_SEPARATOR_WIDTH
 # Timestamped so each run's default message is unique — avoids exact-match
 # collisions with a prior run's submission that used the same default message.
-DEFAULT_SUBMISSION_MESSAGE = f"Submitted via skill ({datetime.now(UTC):%Y-%m-%dT%H:%M:%SZ})"
+DEFAULT_SUBMISSION_MESSAGE = f"Submitted via skill ({datetime.now(timezone.utc):%Y-%m-%dT%H:%M:%SZ})"
 
 
 def has_kaggle_credentials() -> bool:
@@ -119,9 +119,7 @@ def poll_kernel(api, slug: str, poll_interval: int, timeout: int) -> tuple[str, 
         time.sleep(poll_interval)
 
 
-def submit_to_competition(
-    api, slug: str, competition: str, file: str, version: int, message: str
-) -> bool:
+def submit_to_competition(api, slug: str, competition: str, file: str, version: int, message: str) -> bool:
     print(f"\nSubmitting to '{competition}' (file: {file}, version: {version}) ...")
     try:
         api.competition_submit_code(file, message, competition, kernel=slug, kernel_version=version)
@@ -132,9 +130,7 @@ def submit_to_competition(
         return False
 
 
-def poll_submission(
-    api, competition: str, message: str, poll_interval: int, timeout: int
-) -> tuple[str, str | None, float]:
+def poll_submission(api, competition: str, message: str, poll_interval: int, timeout: int) -> tuple[str, str | None, float]:
     """Poll submission evaluation. Returns (status_name, public_score, elapsed)."""
     start = time.time()
     print(f"\nPolling evaluation every {poll_interval}s (timeout {format_duration(timeout)}) ...")
@@ -186,13 +182,8 @@ def poll_submission(
 def main():
     parser = argparse.ArgumentParser(description="Submit a Kaggle kernel and measure runtime.")
     parser.add_argument("path", help="Path to kernel folder (must contain kernel-metadata.json)")
-    parser.add_argument(
-        "--file",
-        help="Output filename produced by the kernel for submission (e.g., submission.csv)",
-    )
-    parser.add_argument(
-        "--message", default=DEFAULT_SUBMISSION_MESSAGE, help="Competition submission message"
-    )
+    parser.add_argument("--file", help="Output filename produced by the kernel for submission (e.g., submission.csv)")
+    parser.add_argument("--message", default=DEFAULT_SUBMISSION_MESSAGE, help="Competition submission message")
     parser.add_argument(
         "--poll-interval",
         type=int,
@@ -205,19 +196,13 @@ def main():
         default=DEFAULT_KERNEL_TIMEOUT_SECONDS,
         help=f"Max seconds to wait (default: {DEFAULT_KERNEL_TIMEOUT_SECONDS} = 24h)",
     )
-    parser.add_argument(
-        "-v",
-        "--version",
-        type=int,
-        help="Existing kernel version to submit (skip push and kernel polling)",
-    )
+    parser.add_argument("-v", "--version", type=int, help="Existing kernel version to submit (skip push and kernel polling)")
     args = parser.parse_args()
 
     if not has_kaggle_credentials():
-        print(
-            "Error: No Kaggle credentials found.\nSet KAGGLE_API_TOKEN environment variable.",
-            file=sys.stderr,
-        )
+        print("Error: No Kaggle credentials found.\n"
+              "Set KAGGLE_API_TOKEN environment variable.",
+              file=sys.stderr)
         sys.exit(1)
 
     kernel_path = os.path.abspath(args.path)
@@ -267,21 +252,14 @@ def main():
 
     if competitions:
         if not args.file:
-            print(
-                "Submission:  skipped "
-                "(--file not specified; read the notebook to find the output filename)"
-            )
+            print("Submission:  skipped (--file not specified; read the notebook to find the output filename)")
         elif status == "complete":
             for comp in competitions:
                 ok = submit_to_competition(api, slug, comp, args.file, version, args.message)
                 print(f"Submission:  {comp} — {'success' if ok else 'failed'}")
                 if ok:
                     eval_status, score, eval_elapsed = poll_submission(
-                        api,
-                        comp,
-                        args.message,
-                        args.poll_interval,
-                        args.timeout,
+                        api, comp, args.message, args.poll_interval, args.timeout,
                     )
                     print(f"Eval time:   {format_duration(eval_elapsed)} (±{args.poll_interval}s)")
                     if score:

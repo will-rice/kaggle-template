@@ -6,16 +6,16 @@
 import argparse
 from pathlib import Path
 
-from constants import DATE_PREVIEW_CHARS
+from rich.console import Console
+from rich.table import Table
+
 from db_info import show_competition_detail
 from kernels.database import KernelDatabase
 from kernels.paths import default_db_path
-from rich.console import Console
-from rich.table import Table
 from runtime import load_project_env
+from constants import DATE_PREVIEW_CHARS
 
 load_project_env()
-
 
 def _show_overview(console: Console, db: KernelDatabase) -> None:
     competitions = db.list_competitions()
@@ -39,21 +39,14 @@ def _show_overview(console: Console, db: KernelDatabase) -> None:
         )
 
     console.print(table)
-    console.print(
-        "[bold]Total:[/bold] "
-        f"{len(competitions)} competitions, "
-        f"{sum(c['cnt'] for c in competitions)} kernels"
-    )
+    console.print(f"\n[bold]Total:[/bold] {len(competitions)} competitions, {sum(c['cnt'] for c in competitions)} kernels")
 
-
-def db_info(competition_id: str | None = None) -> None:
+def db_info(competition_id: str = None):
     console = Console()
     db_path = default_db_path()
 
     if not Path(db_path).exists():
-        console.print(
-            "[yellow]Database not found. Run kernel_ingest.py first to populate it.[/yellow]"
-        )
+        console.print("[yellow]Database not found. Run kernel_ingest.py first to populate it.[/yellow]")
         return
 
     with KernelDatabase(db_path) as db:
@@ -69,18 +62,11 @@ def db_info(competition_id: str | None = None) -> None:
         else:
             _show_overview(console, db)
 
-
 def main():
     parser = argparse.ArgumentParser(description="Show kernel database statistics")
-    parser.add_argument(
-        "competition_id",
-        nargs="?",
-        default=None,
-        help="Show details for a specific competition",
-    )
+    parser.add_argument("competition_id", nargs="?", default=None, help="Show details for a specific competition")
     args = parser.parse_args()
     db_info(args.competition_id)
-
 
 if __name__ == "__main__":
     main()

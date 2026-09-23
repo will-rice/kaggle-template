@@ -5,6 +5,7 @@
 import json
 import re
 from pathlib import Path
+from typing import Optional
 
 import nbformat
 
@@ -21,7 +22,7 @@ class NotebookReader:
 
     def __init__(
         self,
-        client: KaggleKernelClient | None = None,
+        client: Optional[KaggleKernelClient] = None,
         cache_dir: str | Path = "data/notebooks",
     ):
         self._client = client
@@ -36,7 +37,7 @@ class NotebookReader:
     def _cache_path(self, competition_id: str, kernel_ref: str) -> Path:
         return self._cache_dir / competition_id / _sanitize_ref(kernel_ref)
 
-    def _find_ipynb(self, directory: Path) -> Path | None:
+    def _find_ipynb(self, directory: Path) -> Optional[Path]:
         """Find the .ipynb file in the cache directory."""
         candidates = sorted(directory.glob("*.ipynb"))
         if not candidates:
@@ -101,7 +102,7 @@ class NotebookReader:
         except Exception:
             return {}
 
-    def get_raw_path(self, kernel_ref: str, competition_id: str = "__unscoped__") -> Path | None:
+    def get_raw_path(self, kernel_ref: str, competition_id: str = "__unscoped__") -> Optional[Path]:
         """Return the path to the cached .ipynb file, or None if not cached."""
         cache = self._cache_path(competition_id, kernel_ref)
         if not cache.exists():

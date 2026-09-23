@@ -5,8 +5,8 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Iterable
 
 from kagglesdk.kaggle_http_client import KaggleHttpClient
 from kagglesdk.search.services.search_api_service import SearchApiClient
@@ -79,9 +79,7 @@ class KaggleKernelSearchClient:
         self,
         query: str,
         *,
-        order_by: ListSearchContentOrderBy = (
-            ListSearchContentOrderBy.LIST_SEARCH_CONTENT_ORDER_BY_VOTES
-        ),
+        order_by: ListSearchContentOrderBy = ListSearchContentOrderBy.LIST_SEARCH_CONTENT_ORDER_BY_VOTES,
         page_size: int = 50,
         max_pages: int | None = 3,
     ) -> list[ListEntitiesDocument]:
@@ -138,18 +136,12 @@ class KaggleKernelSearchClient:
         if sort == "ascending":
             return sorted(
                 scores,
-                key=lambda item: (
-                    item.score is None,
-                    item.score if item.score is not None else float("inf"),
-                ),
+                key=lambda item: (item.score is None, item.score if item.score is not None else float("inf")),
             )
         if sort == "descending":
             return sorted(
                 scores,
-                key=lambda item: (
-                    item.score is None,
-                    -(item.score if item.score is not None else float("-inf")),
-                ),
+                key=lambda item: (item.score is None, -(item.score if item.score is not None else float("-inf"))),
             )
         return scores
 
@@ -157,9 +149,7 @@ class KaggleKernelSearchClient:
         """Return public score metadata for an exact owner/slug kernel reference."""
         ref = parse_kernel_ref(kernel_ref_or_url)
         if "/" not in ref:
-            raise RuntimeError(
-                f"Invalid kernel ref '{kernel_ref_or_url}'. Expected 'owner/kernel-slug'."
-            )
+            raise RuntimeError(f"Invalid kernel ref '{kernel_ref_or_url}'. Expected 'owner/kernel-slug'.")
 
         expected_owner, expected_slug = ref.lower().split("/", 1)
         documents = self._list_kernel_documents(ref, page_size=50, max_pages=None)
@@ -172,9 +162,7 @@ class KaggleKernelSearchClient:
                 return _kernel_score(document)
         return None
 
-    def get_kernel_scores(
-        self, kernel_refs_or_urls: Iterable[str]
-    ) -> dict[str, KernelScore | None]:
+    def get_kernel_scores(self, kernel_refs_or_urls: Iterable[str]) -> dict[str, KernelScore | None]:
         """Return score metadata for exact kernel refs without dropping missing scores."""
         results: dict[str, KernelScore | None] = {}
         for kernel_ref in kernel_refs_or_urls:

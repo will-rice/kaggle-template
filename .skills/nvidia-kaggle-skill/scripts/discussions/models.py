@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MIT
 """Domain models for Kaggle discussion metadata."""
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -15,8 +16,8 @@ class CompetitionInfo(BaseModel):
     description: str = ""
     evaluation_metric: str = ""
     url: str = ""
-    deadline: str | None = None
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    deadline: Optional[str] = None
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class DiscussionRecord(BaseModel):
@@ -33,16 +34,16 @@ class DiscussionRecord(BaseModel):
     body_markdown: str = ""
     url: str = ""
     tags: list[str] = Field(default_factory=list)
-    created_at: str | None = None
-    updated_at: str | None = None
-    last_fetched_at: str | None = None
-    ingested_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    last_fetched_at: Optional[str] = None
+    ingested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class DiscussionComment(BaseModel):
     """A single comment on a discussion thread."""
 
-    id: int | None = None
+    id: Optional[int] = None
     discussion_id: int
     competition_id: str
     author: str = ""
@@ -50,7 +51,7 @@ class DiscussionComment(BaseModel):
     author_tier: str = ""
     votes: int = 0
     body_markdown: str = ""
-    created_at: str | None = None
+    created_at: Optional[str] = None
 
 
 class CompetitionSummary(BaseModel):
@@ -60,5 +61,5 @@ class CompetitionSummary(BaseModel):
     discussion_count: int = 0
     top_authors: list[tuple[str, int]] = Field(default_factory=list)
     vote_stats: dict[str, float] = Field(default_factory=dict)
-    date_range: tuple[str, str] | None = None
-    competition_info: CompetitionInfo | None = None
+    date_range: Optional[tuple[str, str]] = None
+    competition_info: Optional[CompetitionInfo] = None

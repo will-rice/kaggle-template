@@ -6,31 +6,31 @@
 import argparse
 import json
 
+from rich.console import Console
+from rich.table import Table
+
+from discussions.database import DiscussionDatabase
+from discussions.paths import default_db_path
+from runtime import load_project_env
 from constants import (
     DATE_PREVIEW_CHARS,
     DEFAULT_AUTHOR_COLUMN_WIDTH,
     DEFAULT_QUERY_LIMIT,
     DEFAULT_TITLE_COLUMN_WIDTH,
 )
-from discussions.database import DiscussionDatabase
-from discussions.paths import default_db_path
-from rich.console import Console
-from rich.table import Table
-from runtime import load_project_env
 
 load_project_env()
 
-
 def query(
     competition_id: str,
-    search: str | None = None,
-    min_votes: int | None = None,
-    author: str | None = None,
+    search: str = None,
+    min_votes: int = None,
+    author: str = None,
     sort_by: str = "votes",
     sort_order: str = "DESC",
     limit: int = DEFAULT_QUERY_LIMIT,
     as_json: bool = False,
-) -> None:
+):
     console = Console()
     db_path = default_db_path()
 
@@ -64,12 +64,9 @@ def query(
 
     for d in discussions:
         created = str(d.created_at)[:DATE_PREVIEW_CHARS] if d.created_at else "-"
-        table.add_row(
-            str(d.discussion_id), d.title, d.author, str(d.votes), str(d.comment_count), created
-        )
+        table.add_row(str(d.discussion_id), d.title, d.author, str(d.votes), str(d.comment_count), created)
 
     console.print(table)
-
 
 def main():
     parser = argparse.ArgumentParser(description="Search and filter discussions")
@@ -77,11 +74,7 @@ def main():
     parser.add_argument("--search", help="Free-text search in title, author, and body")
     parser.add_argument("--min-votes", type=int, help="Minimum vote count")
     parser.add_argument("--author", help="Filter by author name")
-    parser.add_argument(
-        "--sort-by",
-        default="votes",
-        choices=["votes", "created_at", "updated_at", "comment_count", "title"],
-    )
+    parser.add_argument("--sort-by", default="votes", choices=["votes", "created_at", "updated_at", "comment_count", "title"])
     parser.add_argument("--sort-order", default="DESC", choices=["ASC", "DESC"])
     parser.add_argument("--limit", type=int, default=DEFAULT_QUERY_LIMIT)
     parser.add_argument("--as-json", action="store_true", help="Output as JSON")
@@ -96,7 +89,6 @@ def main():
         limit=args.limit,
         as_json=args.as_json,
     )
-
 
 if __name__ == "__main__":
     main()

@@ -93,7 +93,7 @@ class KaggleWebServiceClient:
                 resp = self._session.post(url, json=body, headers=headers)
                 resp.raise_for_status()
                 return resp
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - retried/re-raised below
                 last_exc = exc
                 if attempt < self._max_retries - 1:
                     time.sleep(self._retry_delay * (attempt + 1))
@@ -124,7 +124,7 @@ class KaggleWebServiceClient:
         self.close()
 
 
-def kaggle_web_service() -> KaggleWebServiceClient:
+def kaggle_web_service() -> "KaggleWebServiceClient":
     """Return a ready KaggleWebServiceClient (loads .env, seeds XSRF session)."""
     load_project_env()
     return KaggleWebServiceClient()

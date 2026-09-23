@@ -10,7 +10,6 @@ import sys
 
 from kernels.kaggle_search import KaggleKernelSearchClient, parse_kernel_ref
 
-
 def fetch_kernel_score(kernel_ref: str) -> float | None:
     """Fetch the public LB score from Kaggle SDK search.
 
@@ -22,7 +21,6 @@ def fetch_kernel_score(kernel_ref: str) -> float | None:
     ref = parse_kernel_ref(kernel_ref)
     result = KaggleKernelSearchClient().get_kernel_score(ref)
     return result.score if result else None
-
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

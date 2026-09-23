@@ -5,18 +5,18 @@
 
 import argparse
 
-from constants import DATE_PREVIEW_CHARS
-from discussions.database import DiscussionDatabase
-from discussions.paths import default_db_path
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
+
+from discussions.database import DiscussionDatabase
+from discussions.paths import default_db_path
 from runtime import load_project_env
+from constants import DATE_PREVIEW_CHARS
 
 load_project_env()
 
-
-def read_discussion(discussion_id: int, competition_id: str | None = None) -> None:
+def read_discussion(discussion_id: int, competition_id: str = None):
     console = Console()
     db_path = default_db_path()
 
@@ -39,21 +39,16 @@ def read_discussion(discussion_id: int, competition_id: str | None = None) -> No
         comments = db.get_comments(competition_id, discussion_id)
 
     created = str(discussion.created_at)[:DATE_PREVIEW_CHARS] if discussion.created_at else "?"
-    meta = (
-        f"Author: {discussion.author} | Votes: {discussion.votes} | "
-        f"Comments: {discussion.comment_count} | Created: {created}"
-    )
+    meta = f"Author: {discussion.author} | Votes: {discussion.votes} | Comments: {discussion.comment_count} | Created: {created}"
     if discussion.url:
         meta += f"\n{discussion.url}"
 
-    console.print(
-        Panel(
-            meta,
-            title=f"[bold]{discussion.title}[/bold]",
-            title_align="left",
-            border_style="cyan",
-        )
-    )
+    console.print(Panel(
+        meta,
+        title=f"[bold]{discussion.title}[/bold]",
+        title_align="left",
+        border_style="cyan",
+    ))
 
     if discussion.body_markdown:
         console.print()
@@ -61,11 +56,9 @@ def read_discussion(discussion_id: int, competition_id: str | None = None) -> No
 
     if comments:
         console.print(f"\n[bold]── {len(comments)} Comments ──[/bold]\n")
-        for c in comments:
+        for i, c in enumerate(comments, 1):
             vote_str = f" [yellow]▲{c.votes}[/yellow]" if c.votes else ""
-            date_str = (
-                f" [dim]{str(c.created_at)[:DATE_PREVIEW_CHARS]}[/dim]" if c.created_at else ""
-            )
+            date_str = f" [dim]{str(c.created_at)[:DATE_PREVIEW_CHARS]}[/dim]" if c.created_at else ""
             console.print(f"[bold green]{c.author}[/bold green]{vote_str}{date_str}")
             if c.body_markdown:
                 console.print(Markdown(c.body_markdown))
@@ -73,14 +66,12 @@ def read_discussion(discussion_id: int, competition_id: str | None = None) -> No
     else:
         console.print("\n[dim]No comments.[/dim]")
 
-
 def main():
     parser = argparse.ArgumentParser(description="Display a discussion thread with comments")
     parser.add_argument("discussion_id", type=int, help="Numeric discussion ID")
     parser.add_argument("--competition-id", help="Competition slug (searches all if omitted)")
     args = parser.parse_args()
     read_discussion(args.discussion_id, competition_id=args.competition_id)
-
 
 if __name__ == "__main__":
     main()

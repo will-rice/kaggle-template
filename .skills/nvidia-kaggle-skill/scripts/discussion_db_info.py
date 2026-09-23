@@ -6,24 +6,22 @@
 import argparse
 from pathlib import Path
 
-from constants import DATE_PREVIEW_CHARS
+from rich.console import Console
+from rich.table import Table
+
 from db_info import show_competition_detail
 from discussions.database import DiscussionDatabase
 from discussions.paths import default_db_path
-from rich.console import Console
-from rich.table import Table
 from runtime import load_project_env
+from constants import DATE_PREVIEW_CHARS
 
 load_project_env()
-
 
 def _show_overview(console: Console, db: DiscussionDatabase) -> None:
     competitions = db.list_competitions()
 
     if not competitions:
-        console.print(
-            "[yellow]Database is empty. Run discussion_ingest.py to populate it.[/yellow]"
-        )
+        console.print("[yellow]Database is empty. Run discussion_ingest.py to populate it.[/yellow]")
         return
 
     table = Table(title="Competitions in Database")
@@ -41,14 +39,9 @@ def _show_overview(console: Console, db: DiscussionDatabase) -> None:
         )
 
     console.print(table)
-    console.print(
-        "[bold]Total:[/bold] "
-        f"{len(competitions)} competitions, "
-        f"{sum(c['cnt'] for c in competitions)} discussions"
-    )
+    console.print(f"\n[bold]Total:[/bold] {len(competitions)} competitions, {sum(c['cnt'] for c in competitions)} discussions")
 
-
-def db_info(competition_id: str | None = None) -> None:
+def db_info(competition_id: str = None):
     console = Console()
     db_path = default_db_path()
 
@@ -69,18 +62,11 @@ def db_info(competition_id: str | None = None) -> None:
         else:
             _show_overview(console, db)
 
-
 def main():
     parser = argparse.ArgumentParser(description="Show discussion database statistics")
-    parser.add_argument(
-        "competition_id",
-        nargs="?",
-        default=None,
-        help="Show details for a specific competition",
-    )
+    parser.add_argument("competition_id", nargs="?", default=None, help="Show details for a specific competition")
     args = parser.parse_args()
     db_info(args.competition_id)
-
 
 if __name__ == "__main__":
     main()

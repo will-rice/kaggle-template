@@ -8,11 +8,9 @@ import sys
 
 from runtime import competition_pages, competition_slug, html_to_markdown
 
-
 def parse_slug(slug_or_url: str) -> str:
     """Extract competition slug from a Kaggle URL or return as-is."""
     return competition_slug(slug_or_url)
-
 
 def get_competition_overview(slug: str) -> str:
     """Return the competition overview as markdown.
@@ -36,7 +34,6 @@ def get_competition_overview(slug: str) -> str:
 
     return "\n\n".join(sections)
 
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fetch a Kaggle competition overview")
     parser.add_argument("competition", help="Competition slug or URL")
@@ -48,7 +45,6 @@ def main() -> None:
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
-
 
 if __name__ == "__main__":
     main()

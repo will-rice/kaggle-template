@@ -4,19 +4,19 @@
 """Fetch Kaggle competition discussions and store them in the local database."""
 
 import argparse
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
-from constants import DEFAULT_DISCUSSION_MAX_PAGES, DEFAULT_PAGE_SIZE
+from rich.console import Console
+from rich.progress import Progress
+
 from discussions.database import DiscussionDatabase
 from discussions.discussion_client import DiscussionClient
 from discussions.models import DiscussionRecord
 from discussions.paths import default_db_path
-from rich.console import Console
-from rich.progress import Progress
 from runtime import load_project_env
+from constants import DEFAULT_DISCUSSION_MAX_PAGES, DEFAULT_PAGE_SIZE
 
 load_project_env()
-
 
 def _apply_author_details(discussion: DiscussionRecord, op_author: dict | None) -> None:
     if not op_author:
@@ -30,7 +30,6 @@ def _apply_author_details(discussion: DiscussionRecord, op_author: dict | None) 
     if tier and not discussion.author_tier:
         discussion.author_tier = tier
 
-
 def _store_comments(
     db: DiscussionDatabase,
     competition_id: str,
@@ -43,7 +42,6 @@ def _store_comments(
         comment.competition_id = competition_id
     db.upsert_comments(comments)
     return len(comments)
-
 
 def _fetch_and_store_comments(
     client: DiscussionClient,
@@ -69,7 +67,6 @@ def _fetch_and_store_comments(
                 console.print(f"[red]  Failed #{discussion.discussion_id}: {e}[/red]")
             progress.advance(task)
     return total_comments
-
 
 def ingest(
     competition_id: str,
@@ -98,7 +95,7 @@ def ingest(
             console.print("[yellow]No discussions found.[/yellow]")
             return
 
-        now = datetime.now(UTC).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         for d in discussions:
             d.last_fetched_at = now
 
@@ -115,10 +112,7 @@ def ingest(
                     console,
                 )
                 db.upsert_discussions(discussions)
-                console.print(
-                    "[green]Fetched "
-                    f"{total_comments} comments across {len(discussions)} discussions[/green]"
-                )
+                console.print(f"[green]Fetched {total_comments} comments across {len(discussions)} discussions[/green]")
 
             try:
                 comp_info = client.get_competition_info(competition_id)
@@ -132,7 +126,6 @@ def ingest(
         f"[bold green]Done:[/bold green] {inserted} new, {updated_count} updated in {db_path}"
     )
 
-
 def main():
     parser = argparse.ArgumentParser(description="Fetch Kaggle competition discussions")
     parser.add_argument("competition_id", help="Competition slug (e.g. 'birdclef-2026')")
@@ -142,11 +135,7 @@ def main():
         default=DEFAULT_DISCUSSION_MAX_PAGES,
         help=f"Max pages to fetch (default: {DEFAULT_DISCUSSION_MAX_PAGES})",
     )
-    parser.add_argument(
-        "--sort-by",
-        default="hotness",
-        choices=["hotness", "votes", "comments", "created", "updated"],
-    )
+    parser.add_argument("--sort-by", default="hotness", choices=["hotness", "votes", "comments", "created", "updated"])
     parser.add_argument("--page-size", type=int, default=DEFAULT_PAGE_SIZE)
     parser.add_argument("--nofetch-comments", action="store_true", help="Skip fetching comments")
     args = parser.parse_args()
@@ -157,7 +146,6 @@ def main():
         page_size=args.page_size,
         fetch_comments=not args.nofetch_comments,
     )
-
 
 if __name__ == "__main__":
     main()

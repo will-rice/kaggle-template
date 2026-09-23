@@ -5,12 +5,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import Protocol
+from typing import Mapping, Protocol, Sequence
 
-from constants import DATE_PREVIEW_CHARS
 from rich.console import Console
 from rich.table import Table
+
+from constants import DATE_PREVIEW_CHARS
 
 
 class CompetitionSummary(Protocol):
@@ -20,7 +20,8 @@ class CompetitionSummary(Protocol):
 
 
 class CompetitionSummaryDatabase(Protocol):
-    def competition_summary(self, competition_id: str) -> CompetitionSummary: ...
+    def competition_summary(self, competition_id: str) -> CompetitionSummary:
+        ...
 
 
 def show_competition_detail(
@@ -42,7 +43,8 @@ def show_competition_detail(
 
     if entity_count == 0:
         console.print(
-            f"[yellow]No {entity_plural} found for competition '{competition_id}'[/yellow]"
+            f"[yellow]No {entity_plural} found for competition "
+            f"'{competition_id}'[/yellow]"
         )
         return
 

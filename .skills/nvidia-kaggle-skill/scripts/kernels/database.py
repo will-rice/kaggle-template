@@ -4,7 +4,7 @@
 
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from .models import (
     CompetitionInfo,
@@ -102,13 +102,9 @@ class KernelDatabase:
                     kernel.title,
                     kernel.author,
                     kernel.total_votes,
-                    kernel.last_run_time.isoformat()
-                    if getattr(kernel.last_run_time, "isoformat", None)
-                    else kernel.last_run_time,
+                    kernel.last_run_time.isoformat() if getattr(kernel.last_run_time, "isoformat", None) else kernel.last_run_time,
                     int(kernel.is_private),
-                    kernel.ingested_at.isoformat()
-                    if getattr(kernel.ingested_at, "isoformat", None)
-                    else kernel.ingested_at,
+                    kernel.ingested_at.isoformat() if getattr(kernel.ingested_at, "isoformat", None) else kernel.ingested_at,
                 ),
             )
             if existing:
@@ -123,9 +119,9 @@ class KernelDatabase:
         self,
         competition_id: str,
         *,
-        search: str | None = None,
-        min_votes: int | None = None,
-        author: str | None = None,
+        search: Optional[str] = None,
+        min_votes: Optional[int] = None,
+        author: Optional[str] = None,
         sort_by: str = "total_votes",
         sort_order: str = "DESC",
         limit: int = 50,
@@ -153,7 +149,7 @@ class KernelDatabase:
 
         sql = f"""
             SELECT * FROM kernels
-            WHERE {" AND ".join(clauses)}
+            WHERE {' AND '.join(clauses)}
             ORDER BY {sort_by} {sort_order}
             LIMIT ? OFFSET ?
         """
@@ -161,7 +157,7 @@ class KernelDatabase:
         rows = self._conn.execute(sql, params).fetchall()
         return [self._row_to_kernel(row) for row in rows]
 
-    def get_kernel(self, competition_id: str, kernel_ref: str) -> KernelMetadata | None:
+    def get_kernel(self, competition_id: str, kernel_ref: str) -> Optional[KernelMetadata]:
         """Get a single kernel by competition and ref."""
         row = self._conn.execute(
             "SELECT * FROM kernels WHERE competition_id = ? AND kernel_ref = ?",
@@ -280,14 +276,12 @@ class KernelDatabase:
                 info.evaluation_metric,
                 info.url,
                 info.deadline,
-                info.updated_at.isoformat()
-                if getattr(info.updated_at, "isoformat", None)
-                else info.updated_at,
+                info.updated_at.isoformat() if getattr(info.updated_at, "isoformat", None) else info.updated_at,
             ),
         )
         self._conn.commit()
 
-    def get_competition_info(self, competition_id: str) -> CompetitionInfo | None:
+    def get_competition_info(self, competition_id: str) -> Optional[CompetitionInfo]:
         """Get cached competition metadata."""
         row = self._conn.execute(
             "SELECT * FROM competition_info WHERE competition_id = ?",

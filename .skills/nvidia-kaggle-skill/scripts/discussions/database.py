@@ -5,7 +5,7 @@
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from .models import (
     CompetitionInfo,
@@ -110,11 +110,7 @@ class DiscussionDatabase:
             ).fetchone()
 
             tags_json = json.dumps(d.tags) if d.tags else "[]"
-            ingested = (
-                d.ingested_at.isoformat()
-                if hasattr(d.ingested_at, "isoformat")
-                else str(d.ingested_at)
-            )
+            ingested = d.ingested_at.isoformat() if hasattr(d.ingested_at, "isoformat") else str(d.ingested_at)
 
             self._conn.execute(
                 """
@@ -139,21 +135,10 @@ class DiscussionDatabase:
                     ingested_at = excluded.ingested_at
                 """,
                 (
-                    d.competition_id,
-                    d.discussion_id,
-                    d.title,
-                    d.author,
-                    d.author_username,
-                    d.author_tier,
-                    d.votes,
-                    d.comment_count,
-                    d.body_markdown,
-                    d.url,
-                    tags_json,
-                    d.created_at,
-                    d.updated_at,
-                    d.last_fetched_at,
-                    ingested,
+                    d.competition_id, d.discussion_id, d.title, d.author,
+                    d.author_username, d.author_tier,
+                    d.votes, d.comment_count, d.body_markdown, d.url,
+                    tags_json, d.created_at, d.updated_at, d.last_fetched_at, ingested,
                 ),
             )
             if existing:
@@ -168,9 +153,9 @@ class DiscussionDatabase:
         self,
         competition_id: str,
         *,
-        search: str | None = None,
-        min_votes: int | None = None,
-        author: str | None = None,
+        search: Optional[str] = None,
+        min_votes: Optional[int] = None,
+        author: Optional[str] = None,
         sort_by: str = "votes",
         sort_order: str = "DESC",
         limit: int = 50,
@@ -190,21 +175,14 @@ class DiscussionDatabase:
             clauses.append("author LIKE ?")
             params.append(f"%{author}%")
 
-        allowed_sort = {
-            "votes",
-            "created_at",
-            "updated_at",
-            "title",
-            "comment_count",
-            "ingested_at",
-        }
+        allowed_sort = {"votes", "created_at", "updated_at", "title", "comment_count", "ingested_at"}
         if sort_by not in allowed_sort:
             sort_by = "votes"
         sort_order = "DESC" if sort_order.upper() == "DESC" else "ASC"
 
         sql = f"""
             SELECT * FROM discussions
-            WHERE {" AND ".join(clauses)}
+            WHERE {' AND '.join(clauses)}
             ORDER BY {sort_by} {sort_order}
             LIMIT ? OFFSET ?
         """
@@ -212,7 +190,7 @@ class DiscussionDatabase:
         rows = self._conn.execute(sql, params).fetchall()
         return [self._row_to_discussion(row) for row in rows]
 
-    def get_discussion(self, competition_id: str, discussion_id: int) -> DiscussionRecord | None:
+    def get_discussion(self, competition_id: str, discussion_id: int) -> Optional[DiscussionRecord]:
         row = self._conn.execute(
             "SELECT * FROM discussions WHERE competition_id = ? AND discussion_id = ?",
             (competition_id, discussion_id),
@@ -238,16 +216,8 @@ class DiscussionDatabase:
                      votes, body_markdown, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (
-                    c.discussion_id,
-                    c.competition_id,
-                    c.author,
-                    c.author_username,
-                    c.author_tier,
-                    c.votes,
-                    c.body_markdown,
-                    c.created_at,
-                ),
+                (c.discussion_id, c.competition_id, c.author, c.author_username, c.author_tier,
+                 c.votes, c.body_markdown, c.created_at),
             )
         self._conn.commit()
         return len(comments)
@@ -309,8 +279,7 @@ class DiscussionDatabase:
         top_authors = [(row["author"], row["cnt"]) for row in author_rows]
 
         vote_row = self._conn.execute(
-            "SELECT MIN(votes) AS min_v, MAX(votes) AS max_v, AVG(votes) AS avg_v "
-            "FROM discussions WHERE competition_id = ?",
+            "SELECT MIN(votes) AS min_v, MAX(votes) AS max_v, AVG(votes) AS avg_v FROM discussions WHERE competition_id = ?",
             (competition_id,),
         ).fetchone()
         vote_stats = {
@@ -320,8 +289,7 @@ class DiscussionDatabase:
         }
 
         date_row = self._conn.execute(
-            "SELECT MIN(created_at) AS earliest, MAX(created_at) AS latest "
-            "FROM discussions WHERE competition_id = ? AND created_at IS NOT NULL",
+            "SELECT MIN(created_at) AS earliest, MAX(created_at) AS latest FROM discussions WHERE competition_id = ? AND created_at IS NOT NULL",
             (competition_id,),
         ).fetchone()
         date_range = None
@@ -353,20 +321,14 @@ class DiscussionDatabase:
                 deadline = excluded.deadline, updated_at = excluded.updated_at
             """,
             (
-                info.competition_id,
-                info.title,
-                info.description,
-                info.evaluation_metric,
-                info.url,
-                info.deadline,
-                info.updated_at.isoformat()
-                if hasattr(info.updated_at, "isoformat")
-                else str(info.updated_at),
+                info.competition_id, info.title, info.description,
+                info.evaluation_metric, info.url, info.deadline,
+                info.updated_at.isoformat() if hasattr(info.updated_at, "isoformat") else str(info.updated_at),
             ),
         )
         self._conn.commit()
 
-    def get_competition_info(self, competition_id: str) -> CompetitionInfo | None:
+    def get_competition_info(self, competition_id: str) -> Optional[CompetitionInfo]:
         row = self._conn.execute(
             "SELECT * FROM competition_info WHERE competition_id = ?",
             (competition_id,),
@@ -375,12 +337,9 @@ class DiscussionDatabase:
             return None
         return CompetitionInfo(
             competition_id=row["competition_id"],
-            title=row["title"],
-            description=row["description"],
-            evaluation_metric=row["evaluation_metric"],
-            url=row["url"],
-            deadline=row["deadline"],
-            updated_at=row["updated_at"],
+            title=row["title"], description=row["description"],
+            evaluation_metric=row["evaluation_metric"], url=row["url"],
+            deadline=row["deadline"], updated_at=row["updated_at"],
         )
 
     # ── Row helpers ─────────────────────────────────────────────────
@@ -396,32 +355,24 @@ class DiscussionDatabase:
         return DiscussionRecord(
             competition_id=row["competition_id"],
             discussion_id=row["discussion_id"],
-            title=row["title"],
-            author=row["author"],
+            title=row["title"], author=row["author"],
             author_username=row["author_username"] if "author_username" in keys else "",
             author_tier=row["author_tier"] if "author_tier" in keys else "",
-            votes=row["votes"],
-            comment_count=row["comment_count"],
-            body_markdown=row["body_markdown"],
-            url=row["url"],
+            votes=row["votes"], comment_count=row["comment_count"],
+            body_markdown=row["body_markdown"], url=row["url"],
             tags=tags,
-            created_at=row["created_at"],
-            updated_at=row["updated_at"],
-            last_fetched_at=row["last_fetched_at"],
-            ingested_at=row["ingested_at"],
+            created_at=row["created_at"], updated_at=row["updated_at"],
+            last_fetched_at=row["last_fetched_at"], ingested_at=row["ingested_at"],
         )
 
     @staticmethod
     def _row_to_comment(row: sqlite3.Row) -> DiscussionComment:
         keys = row.keys()
         return DiscussionComment(
-            id=row["id"],
-            discussion_id=row["discussion_id"],
-            competition_id=row["competition_id"],
-            author=row["author"],
+            id=row["id"], discussion_id=row["discussion_id"],
+            competition_id=row["competition_id"], author=row["author"],
             author_username=row["author_username"] if "author_username" in keys else "",
             author_tier=row["author_tier"] if "author_tier" in keys else "",
-            votes=row["votes"],
-            body_markdown=row["body_markdown"],
+            votes=row["votes"], body_markdown=row["body_markdown"],
             created_at=row["created_at"],
         )

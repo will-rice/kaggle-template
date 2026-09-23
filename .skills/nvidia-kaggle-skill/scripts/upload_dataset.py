@@ -83,7 +83,7 @@ def write_metadata(data_path: str, username: str, slug: str, title: str, is_priv
             with open(meta_path) as f:
                 existing = json.load(f)
             for key in ("subtitle", "description", "keywords", "licenses"):
-                if existing.get(key):
+                if key in existing and existing[key]:
                     metadata[key] = existing[key]
         except (json.JSONDecodeError, OSError):
             pass
@@ -94,9 +94,7 @@ def write_metadata(data_path: str, username: str, slug: str, title: str, is_priv
     return meta_path
 
 
-def create_dataset(
-    data_path: str, dir_mode: str, public: bool = False
-) -> subprocess.CompletedProcess:
+def create_dataset(data_path: str, dir_mode: str, public: bool = False) -> subprocess.CompletedProcess:
     """Run kaggle datasets create."""
     cmd = ["kaggle", "datasets", "create", "-p", data_path]
     if public:
@@ -107,9 +105,7 @@ def create_dataset(
     return subprocess.run(cmd, capture_output=True, text=True)
 
 
-def create_version(
-    data_path: str, version_notes: str, dir_mode: str
-) -> subprocess.CompletedProcess:
+def create_version(data_path: str, version_notes: str, dir_mode: str) -> subprocess.CompletedProcess:
     """Run kaggle datasets version."""
     cmd = ["kaggle", "datasets", "version", "-p", data_path, "-m", version_notes]
     if dir_mode in ("zip", "tar"):
@@ -122,9 +118,7 @@ def create_version(
 # output is untrusted (it can reflect dataset names, version notes, or remote
 # error text), so escape sequences are stripped before the text is printed or
 # returned to an agent, where they could spoof terminal/log output.
-_ANSI_ESCAPE_RE = re.compile(
-    r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[@-_][^\x1b]*?(?:\x07|\x1b\\)|\x1b[@-Z\\-_]"
-)
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[@-_][^\x1b]*?(?:\x07|\x1b\\)|\x1b[@-Z\\-_]")
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _MAX_CLI_OUTPUT_CHARS = 8000
 
@@ -149,10 +143,7 @@ def parse_collaborator(value: str) -> dict[str, str]:
     username = parts[0].strip()
     role = parts[1].strip().lower() if len(parts) == 2 else "reader"
     if role not in ("reader", "writer"):
-        print(
-            f"Error: Invalid collaborator role '{role}'. Must be 'reader' or 'writer'.",
-            file=sys.stderr,
-        )
+        print(f"Error: Invalid collaborator role '{role}'. Must be 'reader' or 'writer'.", file=sys.stderr)
         sys.exit(1)
     if not username:
         print("Error: Collaborator username cannot be empty.", file=sys.stderr)
@@ -174,9 +165,7 @@ def add_collaborators(
     ``update_dataset_metadata`` after the dataset exists.
     """
     from kaggle.api.kaggle_api_extended import KaggleApi  # type: ignore[import-untyped]
-    from kagglesdk.datasets.types.dataset_api_service import (
-        ApiUpdateDatasetMetadataRequest,  # type: ignore[import-untyped]
-    )
+    from kagglesdk.datasets.types.dataset_api_service import ApiUpdateDatasetMetadataRequest  # type: ignore[import-untyped]
     from kagglesdk.datasets.types.dataset_types import (  # type: ignore[import-untyped]
         CollaboratorType,
         DatasetCollaborator,
@@ -221,13 +210,8 @@ def add_collaborators(
 def main():
     parser = argparse.ArgumentParser(description="Create or update a Kaggle dataset.")
     parser.add_argument("path", help="Path to folder containing data files")
-    parser.add_argument(
-        "--title",
-        help="Dataset title (default: derived from folder name). Slug is derived from title.",
-    )
-    parser.add_argument(
-        "--public", action="store_true", help="Make dataset public (default: private)"
-    )
+    parser.add_argument("--title", help="Dataset title (default: derived from folder name). Slug is derived from title.")
+    parser.add_argument("--public", action="store_true", help="Make dataset public (default: private)")
     parser.add_argument("--version-notes", help="Create a new version with these notes")
     parser.add_argument(
         "--dir-mode",
@@ -240,18 +224,15 @@ def main():
         action="append",
         default=[],
         metavar="USER:ROLE",
-        help=(
-            "Add a collaborator (format: 'username:reader' or 'username:writer'). Can be repeated."
-        ),
+        help="Add a collaborator (format: 'username:reader' or 'username:writer'). Can be repeated.",
     )
     args = parser.parse_args()
 
     # Validate credentials
     if not has_kaggle_credentials():
-        print(
-            "Error: No Kaggle credentials found.\nSet KAGGLE_API_TOKEN environment variable.",
-            file=sys.stderr,
-        )
+        print("Error: No Kaggle credentials found.\n"
+              "Set KAGGLE_API_TOKEN environment variable.",
+              file=sys.stderr)
         sys.exit(1)
 
     # Validate data path
@@ -274,9 +255,8 @@ def main():
     slug = slugify(title)
     if len(slug) < MIN_DATASET_SLUG_LENGTH:
         print(
-            f"Error: Dataset title '{title}' produces a slug '{slug}' that is too short "
-            f"({len(slug)} chars). The slug must be between "
-            f"{MIN_DATASET_SLUG_LENGTH} and {MAX_DATASET_SLUG_LENGTH} characters.\n"
+            f"Error: Dataset title '{title}' produces a slug '{slug}' that is too short ({len(slug)} chars). "
+            f"The slug must be between {MIN_DATASET_SLUG_LENGTH} and {MAX_DATASET_SLUG_LENGTH} characters.\n"
             "Use --title to provide a longer title.",
             file=sys.stderr,
         )
@@ -307,7 +287,7 @@ def main():
 
     # Handle output. Kaggle CLI output is untrusted, so strip terminal
     # escape/control sequences and bound its length before printing.
-    output = sanitize_cli_output(result.stdout + result.stderr).strip()
+    output = sanitize_cli_output((result.stdout + result.stderr)).strip()
     if result.returncode != 0:
         print(f"Upload failed:\n{output}", file=sys.stderr)
         if "already exists" in output.lower() and not args.version_notes:

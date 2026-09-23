@@ -53,7 +53,9 @@ def parse_kernel_ref(kernel_ref: str) -> KernelRef:
 
     parts = [p for p in kernel_ref.split("/") if p]
     if len(parts) != 2:
-        raise KernelArchiveError("Kernel reference must be owner/kernel-slug or a Kaggle code URL")
+        raise KernelArchiveError(
+            "Kernel reference must be owner/kernel-slug or a Kaggle code URL"
+        )
     return KernelRef(parts[0], parts[1])
 
 
@@ -196,11 +198,7 @@ def select_best_public_lb_version(
         if inferred:
             score_direction = inferred
         elif len(scored) == 1:
-            return {
-                **scored[0],
-                "score_direction": "auto",
-                "selection_reason": "only one scored version",
-            }
+            return {**scored[0], "score_direction": "auto", "selection_reason": "only one scored version"}
         else:
             raise KernelArchiveError(
                 "Could not determine score direction from Kaggle metadata; "
@@ -209,11 +207,7 @@ def select_best_public_lb_version(
 
     reverse = score_direction == "maximize"
     best = sorted(scored, key=lambda r: r["public_lb_numeric"], reverse=reverse)[0]
-    return {
-        **best,
-        "score_direction": score_direction,
-        "selection_reason": f"best public LB ({score_direction})",
-    }
+    return {**best, "score_direction": score_direction, "selection_reason": f"best public LB ({score_direction})"}
 
 
 def _source_extension(source_text: str, language: str | None) -> str:
@@ -287,10 +281,7 @@ def _download_version(
 
     source_text = client.post_text(
         SOURCE,
-        {
-            "kernelSessionId": selected["kernel_session_id"],
-            "includeOutputIfAvailable": include_outputs,
-        },
+        {"kernelSessionId": selected["kernel_session_id"], "includeOutputIfAvailable": include_outputs},
     )
     source_path = version_dir / f"source{_source_extension(source_text, selected.get('language'))}"
     if force or not source_path.exists():
@@ -304,9 +295,7 @@ def _download_version(
         "versions": _scores_view(rows),
     }
     metadata_path = version_dir / "metadata.json"
-    metadata_path.write_text(
-        json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     metadata["metadata_path"] = str(metadata_path)
     return metadata
 

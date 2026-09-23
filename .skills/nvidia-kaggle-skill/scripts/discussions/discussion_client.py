@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 import httpx
+
 from runtime import require_kaggle_token
 
 from .models import CompetitionInfo, DiscussionComment, DiscussionRecord
@@ -45,9 +46,7 @@ class DiscussionClient:
         for attempt in range(self._max_retries):
             try:
                 with httpx.Client(
-                    headers=self._headers(),
-                    follow_redirects=True,
-                    timeout=30.0,
+                    headers=self._headers(), follow_redirects=True, timeout=30.0,
                 ) as client:
                     resp = client.get(f"{KAGGLE_API_BASE}{path}", params=params)
                     resp.raise_for_status()
@@ -56,18 +55,14 @@ class DiscussionClient:
                 last_exc = exc
                 if attempt < self._max_retries - 1:
                     time.sleep(self._retry_delay * (attempt + 1))
-        raise RuntimeError(
-            f"Kaggle API failed after {self._max_retries} retries: {last_exc}"
-        ) from last_exc
+        raise RuntimeError(f"Kaggle API failed after {self._max_retries} retries: {last_exc}") from last_exc
 
     def _post_search(self, body: dict[str, Any]) -> Any:
         last_exc: Exception | None = None
         for attempt in range(self._max_retries):
             try:
                 with httpx.Client(
-                    headers=self._headers(),
-                    follow_redirects=True,
-                    timeout=30.0,
+                    headers=self._headers(), follow_redirects=True, timeout=30.0,
                 ) as client:
                     resp = client.post(KAGGLE_SEARCH_API, json=body)
                     resp.raise_for_status()
@@ -76,9 +71,7 @@ class DiscussionClient:
                 last_exc = exc
                 if attempt < self._max_retries - 1:
                     time.sleep(self._retry_delay * (attempt + 1))
-        raise RuntimeError(
-            f"Search API failed after {self._max_retries} retries: {last_exc}"
-        ) from last_exc
+        raise RuntimeError(f"Search API failed after {self._max_retries} retries: {last_exc}") from last_exc
 
     # ── Discussion detail endpoint (requires XSRF session) ─────────
 
@@ -87,8 +80,7 @@ class DiscussionClient:
         if self._session is not None and self._xsrf_token:
             return self._session
         session = httpx.Client(
-            follow_redirects=True,
-            timeout=30.0,
+            follow_redirects=True, timeout=30.0,
             headers={"Authorization": f"Bearer {self._token}"},
         )
         session.get("https://www.kaggle.com")
@@ -122,9 +114,7 @@ class DiscussionClient:
                     session = self._ensure_session()
                     headers["X-XSRF-TOKEN"] = self._xsrf_token or ""
                     time.sleep(self._retry_delay * (attempt + 1))
-        raise RuntimeError(
-            f"Kaggle discussion service call failed after {self._max_retries} retries: {last_exc}"
-        ) from last_exc
+        raise RuntimeError(f"Kaggle discussion service call failed after {self._max_retries} retries: {last_exc}") from last_exc
 
     def close(self) -> None:
         self._reset_session()
@@ -251,11 +241,7 @@ class DiscussionClient:
         body = disc_doc.get("messageMarkdown", "") or disc_doc.get("messageStripped", "")
 
         tags_raw = doc.get("tags", [])
-        tags = (
-            [t.get("name", "") for t in tags_raw if isinstance(t, dict)]
-            if isinstance(tags_raw, list)
-            else []
-        )
+        tags = [t.get("name", "") for t in tags_raw if isinstance(t, dict)] if isinstance(tags_raw, list) else []
 
         return DiscussionRecord(
             competition_id=competition_id,
@@ -303,9 +289,7 @@ class DiscussionClient:
             if isinstance(author_obj, dict):
                 op_author = {
                     "displayName": author_obj.get("displayName", ""),
-                    "username": (
-                        author_obj.get("userName", "") or author_obj.get("url", "")
-                    ).lstrip("/"),
+                    "username": (author_obj.get("userName", "") or author_obj.get("url", "")).lstrip("/"),
                     "tier": author_obj.get("tier", ""),
                 }
 
@@ -319,27 +303,23 @@ class DiscussionClient:
                 if not isinstance(author_obj, dict):
                     author_obj = {}
                 author_name = author_obj.get("displayName", "")
-                author_username = (
-                    author_obj.get("userName", "") or author_obj.get("url", "")
-                ).lstrip("/")
+                author_username = (author_obj.get("userName", "") or author_obj.get("url", "")).lstrip("/")
                 author_tier = author_obj.get("tier", "")
                 body_text = c.get("rawMarkdown", "") or c.get("content", "")
                 votes_obj = c.get("votes", {})
                 vote_count = votes_obj.get("totalVotes", 0) if isinstance(votes_obj, dict) else 0
                 created = c.get("postDate", "")
 
-                comments.append(
-                    DiscussionComment(
-                        discussion_id=discussion_id,
-                        competition_id=competition_id,
-                        author=author_name,
-                        author_username=author_username,
-                        author_tier=author_tier,
-                        votes=vote_count,
-                        body_markdown=body_text,
-                        created_at=created or None,
-                    )
-                )
+                comments.append(DiscussionComment(
+                    discussion_id=discussion_id,
+                    competition_id=competition_id,
+                    author=author_name,
+                    author_username=author_username,
+                    author_tier=author_tier,
+                    votes=vote_count,
+                    body_markdown=body_text,
+                    created_at=created or None,
+                ))
 
                 replies = c.get("replies", [])
                 if replies:

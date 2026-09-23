@@ -5,22 +5,22 @@
 
 import argparse
 
-from constants import DEFAULT_PAGE_SIZE
+from rich.console import Console
+
 from kernels.database import KernelDatabase
 from kernels.kaggle_client import KaggleKernelClient
 from kernels.paths import default_db_path
-from rich.console import Console
 from runtime import load_project_env
+from constants import DEFAULT_PAGE_SIZE
 
 load_project_env()
 
-
 def ingest(
     competition_id: str,
-    max_pages: int | None = None,
+    max_pages: int = None,
     sort_by: str = "hotness",
     page_size: int = DEFAULT_PAGE_SIZE,
-) -> None:
+):
     console = Console()
     db_path = default_db_path()
 
@@ -54,16 +54,11 @@ def ingest(
 
     console.print(f"[bold green]Done:[/bold green] {inserted} new, {updated} updated in {db_path}")
 
-
 def main():
     parser = argparse.ArgumentParser(description="Fetch Kaggle competition kernels")
     parser.add_argument("competition_id", help="Competition slug (e.g. 'titanic')")
-    parser.add_argument(
-        "--max-pages", type=int, default=None, help="Stop after N pages (default: fetch all)"
-    )
-    parser.add_argument(
-        "--sort-by", default="hotness", choices=["hotness", "dateCreated", "dateRun", "voteCount"]
-    )
+    parser.add_argument("--max-pages", type=int, default=None, help="Stop after N pages (default: fetch all)")
+    parser.add_argument("--sort-by", default="hotness", choices=["hotness", "dateCreated", "dateRun", "voteCount"])
     parser.add_argument("--page-size", type=int, default=DEFAULT_PAGE_SIZE)
     args = parser.parse_args()
     ingest(
@@ -72,7 +67,6 @@ def main():
         sort_by=args.sort_by,
         page_size=args.page_size,
     )
-
 
 if __name__ == "__main__":
     main()

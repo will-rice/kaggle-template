@@ -18,7 +18,7 @@ import io
 import json
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from runtime import competition_slug, load_project_env
 
@@ -40,7 +40,7 @@ def competition_daily_submission_limit(slug: str) -> int | None:
         if comps:
             limit = getattr(comps[0], "max_daily_submissions", 0)
             return int(limit) if limit else None
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — best-effort detection
         print(f"[quota] could not read max_daily_submissions for {slug}: {exc}", file=sys.stderr)
     return None
 
@@ -89,8 +89,8 @@ def _parse_submission_date(value: str) -> datetime | None:
         else:
             return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC)
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def submissions_used_today(slug: str, *, now: datetime | None = None) -> int | None:
@@ -98,7 +98,7 @@ def submissions_used_today(slug: str, *, now: datetime | None = None) -> int | N
     rows = _submission_rows(slug)
     if rows is None:
         return None
-    now = (now or datetime.now(UTC)).astimezone(UTC)
+    now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
     count = 0
     for row in rows:
@@ -122,7 +122,7 @@ def _fetch_submissions(slug: str, *, page_size: int = 200) -> list[tuple[str, da
         api = KaggleApi()
         api.authenticate()
         subs = api.competition_submissions(slug, page_size=page_size)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — best-effort, like the rest of this module
         print(f"[quota] could not fetch submissions for {slug}: {exc}", file=sys.stderr)
         return None
 
@@ -130,21 +130,13 @@ def _fetch_submissions(slug: str, *, page_size: int = 200) -> list[tuple[str, da
     for sub in subs or []:
         date_val = getattr(sub, "date", None)
         # ApiSubmission.date may be a datetime or a string depending on SDK version.
-        dt = (
-            date_val
-            if isinstance(date_val, datetime)
-            else _parse_submission_date(str(date_val or ""))
-        )
+        dt = date_val if isinstance(date_val, datetime) else _parse_submission_date(str(date_val or ""))
         if dt is None:
             continue
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=UTC)
-        user = (
-            getattr(sub, "submitted_by", None)
-            or getattr(sub, "submitted_by_ref", None)
-            or "unknown"
-        )
-        out.append((user, dt.astimezone(UTC)))
+            dt = dt.replace(tzinfo=timezone.utc)
+        user = getattr(sub, "submitted_by", None) or getattr(sub, "submitted_by_ref", None) or "unknown"
+        out.append((user, dt.astimezone(timezone.utc)))
     return out
 
 
@@ -155,7 +147,7 @@ def submissions_by_user_today(
     subs = _fetch_submissions(slug, page_size=page_size)
     if subs is None:
         return None
-    now = (now or datetime.now(UTC)).astimezone(UTC)
+    now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
     counts: dict[str, int] = {}
     for user, dt in subs:
@@ -239,9 +231,7 @@ def submission_quota(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Report today's Kaggle submission quota for a competition"
-    )
+    parser = argparse.ArgumentParser(description="Report today's Kaggle submission quota for a competition")
     parser.add_argument("competition", help="Competition slug or URL")
     parser.add_argument(
         "--limit-fallback",
@@ -316,9 +306,7 @@ def main() -> None:
         else:
             print("By day (UTC, newest first):")
             for day, users in by_day.items():
-                parts = ", ".join(
-                    f"{u}: {c}" for u, c in sorted(users.items(), key=lambda kv: (-kv[1], kv[0]))
-                )
+                parts = ", ".join(f"{u}: {c}" for u, c in sorted(users.items(), key=lambda kv: (-kv[1], kv[0])))
                 print(f"  {day}: {parts}")
     if state["exhausted"]:
         print("Status: EXHAUSTED — no submissions left today.")

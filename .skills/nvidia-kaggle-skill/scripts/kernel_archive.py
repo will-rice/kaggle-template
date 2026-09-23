@@ -18,20 +18,12 @@ from kernels.archive import (
     kernel_version_scores,
 )
 
-
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description=(
-            "Archive a Kaggle kernel's source — a specific version, "
-            "or the best public-LB version by default"
-        )
+        description="Archive a Kaggle kernel's source — a specific version, or the best public-LB version by default"
     )
-    parser.add_argument(
-        "kernel_ref", help="Kernel reference (owner/kernel-slug) or a Kaggle /code/ URL"
-    )
-    parser.add_argument(
-        "output_dir", nargs="?", help="Directory to write the archived version into"
-    )
+    parser.add_argument("kernel_ref", help="Kernel reference (owner/kernel-slug) or a Kaggle /code/ URL")
+    parser.add_argument("output_dir", nargs="?", help="Directory to write the archived version into")
     parser.add_argument(
         "--version",
         type=int,
@@ -41,14 +33,9 @@ def main() -> None:
         "--score-direction",
         choices=["auto", "minimize", "maximize"],
         default="auto",
-        help=(
-            "When picking the best version, whether lower or higher LB is better "
-            "(default: auto). Ignored with --version."
-        ),
+        help="When picking the best version, whether lower or higher LB is better (default: auto). Ignored with --version.",
     )
-    parser.add_argument(
-        "--include-outputs", action="store_true", help="Include cell outputs in the source download"
-    )
+    parser.add_argument("--include-outputs", action="store_true", help="Include cell outputs in the source download")
     parser.add_argument("--force", action="store_true", help="Overwrite an existing source file")
     parser.add_argument(
         "--scores-only",
@@ -87,7 +74,6 @@ def main() -> None:
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
-
 
 if __name__ == "__main__":
     main()

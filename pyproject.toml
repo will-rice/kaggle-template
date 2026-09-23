@@ -40,7 +40,7 @@ testpaths = ["tests"]
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-extend-exclude = ["docs/superpowers/plans/*.md"]
+extend-exclude = [".skills/nvidia-kaggle-skill"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]

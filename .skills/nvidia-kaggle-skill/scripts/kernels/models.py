@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 """Domain models for Kaggle kernel metadata and notebook content."""
 
-from datetime import UTC, datetime
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -16,8 +16,8 @@ class CompetitionInfo(BaseModel):
     description: str = ""
     evaluation_metric: str = ""
     url: str = ""
-    deadline: str | None = None
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    deadline: Optional[str] = None
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class KernelMetadata(BaseModel):
@@ -28,9 +28,9 @@ class KernelMetadata(BaseModel):
     title: str
     author: str
     total_votes: int = 0
-    last_run_time: datetime | None = None
+    last_run_time: Optional[datetime] = None
     is_private: bool = False
-    ingested_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    ingested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
     def slug(self) -> str:
@@ -42,7 +42,7 @@ class NotebookCell(BaseModel):
 
     cell_type: str  # "code", "markdown", "raw"
     source: str
-    execution_count: int | None = None
+    execution_count: Optional[int] = None
 
 
 class NotebookContent(BaseModel):
@@ -73,5 +73,5 @@ class CompetitionSummary(BaseModel):
     kernel_count: int = 0
     top_authors: list[tuple[str, int]] = Field(default_factory=list)
     vote_stats: dict[str, float] = Field(default_factory=dict)
-    date_range: tuple[str, str] | None = None
-    competition_info: CompetitionInfo | None = None
+    date_range: Optional[tuple[str, str]] = None
+    competition_info: Optional[CompetitionInfo] = None

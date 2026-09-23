@@ -1,124 +1,58 @@
 # NVIDIA Kaggle Skill Vendoring Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**Goal:** Preserve one exact authored NVIDIA Kaggle skill snapshot under `.skills/nvidia-kaggle-skill` without rewriting external source to satisfy repository Ruff rules.
 
-**Goal:** Vendor the complete NVIDIA Kaggle skill into `.skills/nvidia-kaggle-skill` as a portable, self-contained repository skill.
+**Architecture:** `/Users/will/.agents/skills/nvidia-kaggle-skill` is the sole source of truth. Every authored file is restored byte-for-byte into `.skills/nvidia-kaggle-skill`, excluding only caches, `data`, env or credential files, and bytecode. `.skills/nvidia-kaggle-skill/SOURCE_MANIFEST.sha256` records deterministic SHA-256 hashes for all 41 authored files and repository tests enforce exact membership, exact hashes, relative-reference completeness, and Python syntax parsing without importing Kaggle workflows.
 
-**Architecture:** The installed skill at `/Users/will/.agents/skills/nvidia-kaggle-skill` is the source of truth for one authored snapshot. Its complete documentation, evaluations, and Python scripts are copied into `.skills/nvidia-kaggle-skill`; generated caches, data, credentials, and bytecode are excluded. A repository-contract test verifies the entry point, required workflow files, internal relative references, and absence of generated files.
-
-**Tech Stack:** Agent Skills Markdown, Python 3.12 or newer, pytest, Ruff, mypy, pre-commit, and Git.
+**Quality policy:** Repository-owned code and documentation continue to pass strict Ruff, mypy, pytest, and pre-commit checks. Ruff excludes only `.skills/nvidia-kaggle-skill`; mypy remains scoped to `src` and `tests`. The vendored external snapshot is validated by manifest, syntax, reference, secret, compile, and direct source-comparison checks instead of source rewriting.
 
 ## Global Constraints
 
-- Copy the complete skill directory rather than using a symlink or a wrapper.
-- The vendored copy is limited to authored source files.
-- Generated caches, local databases, downloaded data, credentials, and Python bytecode are excluded.
-- The existing six core workflows remain under `.agents/skills` unchanged.
-- The NVIDIA skill is additive under `.skills`; it does not alter their names, behavior, or exact-count contract.
-- All internal relative links and script paths must resolve inside the vendored directory.
-- Preserve the skill's explicit confirmation requirements for submissions and dataset uploads.
-- Do not integrate NVIDIA-specific behavior into the modality-agnostic framework package.
-- Do not run Kaggle API, download, upload, or submission workflows as part of vendoring.
-
----
+- Keep the six existing `.agents/skills` directories unchanged.
+- Do not integrate NVIDIA-specific behavior into `src/` or the framework.
+- Do not weaken mypy or repository-owned Ruff coverage.
+- Do not run Kaggle network, submission, dataset-upload, or kernel-execution workflows.
+- Preserve the skill's explicit confirmation and secret-handling guidance exactly as authored.
 
 ## File Map
 
 | Path | Responsibility |
 |---|---|
-| `.skills/nvidia-kaggle-skill/SKILL.md` | Skill entry point, safety rules, dependencies, and workflow catalog. |
-| `.skills/nvidia-kaggle-skill/research-brief.md` | Competition research-brief workflow. |
-| `.skills/nvidia-kaggle-skill/writeups.md` | Writeup discovery and retrieval workflow. |
-| `.skills/nvidia-kaggle-skill/kernels.md` | Kernel ingestion, query, reading, and scoring workflow. |
-| `.skills/nvidia-kaggle-skill/kernel-setup.md` | Local kernel reproduction workflow. |
-| `.skills/nvidia-kaggle-skill/submission.md` | Explicit Kaggle kernel-submission workflow. |
-| `.skills/nvidia-kaggle-skill/evals/evals.json` | Skill evaluation cases. |
-| `.skills/nvidia-kaggle-skill/scripts/` | Self-contained Python commands and their `kernels`/`discussions` support packages. |
-| `tests/test_nvidia_kaggle_skill.py` | Vendored-skill completeness, reference, safety, and generated-file contract. |
+| `.skills/nvidia-kaggle-skill/**` | Exact authored NVIDIA snapshot copied from `/Users/will/.agents/skills/nvidia-kaggle-skill`, excluding caches/data/env/credential files/bytecode. |
+| `.skills/nvidia-kaggle-skill/SOURCE_MANIFEST.sha256` | Sorted SHA-256 manifest for every authored vendored file except the manifest itself. |
+| `tests/test_nvidia_kaggle_skill.py` | Exact snapshot integrity, reference, authored-file exclusion, and syntax checks. |
+| `pyproject.toml` | Ruff exclusion narrowed to `.skills/nvidia-kaggle-skill` only. |
+| `docs/superpowers/specs/2026-09-23-nvidia-kaggle-skill-design.md` | Records the exact-snapshot vendoring policy. |
+| `docs/superpowers/plans/2026-09-23-nvidia-kaggle-skill.md` | Records implementation steps and validation commands for the exact-snapshot policy. |
+| `.superpowers/sdd/nvidia-skill-task-1-report.md` | RED/GREEN evidence plus exact source-comparison results. |
 
-### Task 1: Vendor and Validate the NVIDIA Kaggle Skill
+## Execution Steps
 
-**Files:**
-- Create: `.skills/nvidia-kaggle-skill/SKILL.md`
-- Create: `.skills/nvidia-kaggle-skill/research-brief.md`
-- Create: `.skills/nvidia-kaggle-skill/writeups.md`
-- Create: `.skills/nvidia-kaggle-skill/kernels.md`
-- Create: `.skills/nvidia-kaggle-skill/kernel-setup.md`
-- Create: `.skills/nvidia-kaggle-skill/submission.md`
-- Create: `.skills/nvidia-kaggle-skill/evals/evals.json`
-- Create: `.skills/nvidia-kaggle-skill/scripts/*.py`
-- Create: `.skills/nvidia-kaggle-skill/scripts/kernels/*.py`
-- Create: `.skills/nvidia-kaggle-skill/scripts/discussions/*.py`
-- Create: `tests/test_nvidia_kaggle_skill.py`
+- [ ] **Step 1: Write failing integrity tests first**
 
-**Interfaces:**
-- Consumes: authored files under `/Users/will/.agents/skills/nvidia-kaggle-skill`.
-- Produces: a self-contained skill rooted at `.skills/nvidia-kaggle-skill/SKILL.md`; every relative `./path` named by `SKILL.md` resolves beneath that root.
+Update `tests/test_nvidia_kaggle_skill.py` so the focused test suite requires:
 
-- [ ] **Step 1: Write the failing repository-contract test**
+- required workflow files and internal `./...` references from `SKILL.md`
+- absence of `__pycache__`, `data`, `.env`, `kaggle.json`, and `.pyc`
+- exact `SOURCE_MANIFEST.sha256` membership and hashes for all 41 authored vendored files
+- successful `ast.parse` of every vendored `.py` file without importing or executing them
 
-Create `tests/test_nvidia_kaggle_skill.py`:
-
-```python
-from pathlib import Path
-import re
-
-
-SKILL_ROOT = Path(".skills/nvidia-kaggle-skill")
-REQUIRED_WORKFLOWS = {
-    "SKILL.md",
-    "research-brief.md",
-    "writeups.md",
-    "kernels.md",
-    "kernel-setup.md",
-    "submission.md",
-    "evals/evals.json",
-}
-
-
-def test_nvidia_kaggle_skill_is_self_contained() -> None:
-    assert REQUIRED_WORKFLOWS <= {
-        path.relative_to(SKILL_ROOT).as_posix()
-        for path in SKILL_ROOT.rglob("*")
-        if path.is_file()
-    }
-    skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
-    relative_references = set(
-        re.findall(r"(?:^|\s)\./([A-Za-z0-9_./-]+)", skill, flags=re.MULTILINE)
-    )
-    assert relative_references
-    for reference in relative_references:
-        assert (SKILL_ROOT / reference).exists(), reference
-
-
-def test_nvidia_kaggle_skill_preserves_external_action_guards() -> None:
-    skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
-    assert "Require explicit user confirmation" in skill
-    assert "competition submissions" in skill
-    assert "dataset uploads" in skill
-    assert "never print, log, or echo" in skill
-
-
-def test_nvidia_kaggle_skill_contains_only_authored_files() -> None:
-    forbidden_parts = {"__pycache__", "data"}
-    forbidden_names = {".env", "kaggle.json"}
-    files = [path for path in SKILL_ROOT.rglob("*") if path.is_file()]
-    assert files
-    assert not any(forbidden_parts & set(path.parts) for path in files)
-    assert not any(path.name in forbidden_names or path.suffix == ".pyc" for path in files)
-```
-
-- [ ] **Step 2: Run the focused test and verify the skill is absent**
-
-Run: `uv run pytest tests/test_nvidia_kaggle_skill.py -v`
-
-Expected: FAIL because `.skills/nvidia-kaggle-skill/SKILL.md` does not exist.
-
-- [ ] **Step 3: Copy the authored skill snapshot**
+- [ ] **Step 2: Capture RED evidence**
 
 Run:
 
 ```bash
+uv run pytest tests/test_nvidia_kaggle_skill.py -v
+```
+
+Expected: FAIL until `SOURCE_MANIFEST.sha256` exists and matches the vendored files.
+
+- [ ] **Step 3: Restore the authored snapshot exactly**
+
+Run:
+
+```bash
+rm -rf .skills/nvidia-kaggle-skill
 mkdir -p .skills
 rsync -a \
   --exclude '__pycache__/' \
@@ -131,9 +65,27 @@ rsync -a \
   .skills/nvidia-kaggle-skill/
 ```
 
-Expected: `find .skills/nvidia-kaggle-skill -type f | wc -l` prints `41`, and no excluded path is present.
+Expected: the 41 authored files match the source snapshot byte-for-byte.
 
-- [ ] **Step 4: Run focused and repository validation**
+- [ ] **Step 4: Generate the deterministic manifest**
+
+Create `.skills/nvidia-kaggle-skill/SOURCE_MANIFEST.sha256` with one sorted line per authored file:
+
+```text
+<64 lowercase hex chars><two spaces><relative posix path>
+```
+
+The manifest excludes itself and covers all 41 authored vendored files.
+
+- [ ] **Step 5: Narrow Ruff exclusion without changing other scopes**
+
+Update `pyproject.toml` so:
+
+- `tool.ruff.extend-exclude = [".skills/nvidia-kaggle-skill"]`
+- no exclusion remains for `docs/superpowers/plans/*.md`
+- `tool.mypy.files` stays exactly `["src", "tests"]`
+
+- [ ] **Step 6: Validate the restored snapshot and the repository**
 
 Run:
 
@@ -144,28 +96,63 @@ uv run ruff format --check .
 uv run ruff check .
 uv run mypy
 uv run pre-commit run --all-files
+python3 - <<'PY'
+from pathlib import Path
+for path in Path(".skills/nvidia-kaggle-skill").rglob("*.py"):
+    compile(path.read_text(encoding="utf-8"), str(path), "exec")
+print("compiled vendored python sources in-memory")
+PY
 git diff --check
 ```
 
 Expected:
 
-- focused skill tests PASS
-- the full suite PASS
-- Ruff formatting and linting PASS
-- mypy reports no issues
-- every pre-commit hook reports `Passed`
+- focused vendored-skill tests PASS
+- full pytest suite PASS
+- Ruff format and lint PASS for repository-owned files
+- mypy PASS with unchanged scope
+- pre-commit PASS
+- vendored Python sources compile in memory without writing bytecode
 - `git diff --check` emits no output
 
-- [ ] **Step 5: Scan the vendored files for secrets**
+- [ ] **Step 7: Validate snapshot fidelity and secrets**
 
-Run the repository secret scanner against the raw contents of all non-ignored files under `.skills/nvidia-kaggle-skill`.
-
-Expected: no credential, token, password, or private key findings.
-
-- [ ] **Step 6: Commit the vendored skill**
+Run:
 
 ```bash
-git add .skills/nvidia-kaggle-skill tests/test_nvidia_kaggle_skill.py
-git commit -m "feat: vendor NVIDIA Kaggle skill" \
+diff -qr \
+  --exclude 'SOURCE_MANIFEST.sha256' \
+  --exclude '__pycache__' \
+  --exclude '*.pyc' \
+  --exclude 'data' \
+  --exclude '.env' \
+  --exclude '.env.*' \
+  --exclude 'kaggle.json' \
+  /Users/will/.agents/skills/nvidia-kaggle-skill \
+  .skills/nvidia-kaggle-skill
+rg -n "(KAGGLE_API_TOKEN|kaggle\\.json|Authorization|api[_-]?key|secret|token|password|private[ _-]?key|BEGIN [A-Z ]*PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{20,})" \
+  .skills/nvidia-kaggle-skill -g '*.{md,py,json}'
+git diff -- .agents/skills
+```
+
+Expected:
+
+- `diff -qr` reports no differences between source and vendored authored files
+- secret scan shows no committed secret material
+- `.agents/skills` diff is empty
+
+- [ ] **Step 8: Update evidence and commit**
+
+Append RED/GREEN evidence and exact source-comparison results to `.superpowers/sdd/nvidia-skill-task-1-report.md`, then commit:
+
+```bash
+git add .skills/nvidia-kaggle-skill/SOURCE_MANIFEST.sha256 \
+  .skills/nvidia-kaggle-skill \
+  tests/test_nvidia_kaggle_skill.py \
+  pyproject.toml \
+  docs/superpowers/specs/2026-09-23-nvidia-kaggle-skill-design.md \
+  docs/superpowers/plans/2026-09-23-nvidia-kaggle-skill.md \
+  .superpowers/sdd/nvidia-skill-task-1-report.md
+git commit -m "fix: restore exact NVIDIA skill snapshot" \
   -m "Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>"
 ```

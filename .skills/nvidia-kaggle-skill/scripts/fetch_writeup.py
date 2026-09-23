@@ -23,16 +23,15 @@ from runtime import kaggle_web_service
 
 WRITEUP_URL_RE = re.compile(r"/competitions/(?P<competition>[^/]+)/writeups/(?P<slug>[^/?#]+)")
 
-
 def _resolve_topic_id(client, competition: str, writeup_slug: str) -> int:
     """Map a writeup slug to its forum topic id via the competition leaderboard."""
     competition_info = client.post(
         "competitions.CompetitionService/GetCompetition",
         {"competitionName": competition},
     )
-    competition_id = competition_info.get("id") or (competition_info.get("competition") or {}).get(
-        "id"
-    )
+    competition_id = competition_info.get("id") or (
+        competition_info.get("competition") or {}
+    ).get("id")
     if not competition_id:
         raise RuntimeError(f"Could not resolve competition id for '{competition}'.")
 
@@ -50,7 +49,6 @@ def _resolve_topic_id(client, competition: str, writeup_slug: str) -> int:
         f"Could not find writeup '{writeup_slug}' in the leaderboard for "
         f"'{competition}'. The writeup may be unlisted or removed."
     )
-
 
 def fetch_writeup(url: str) -> str:
     """Return the writeup's source markdown for a Kaggle writeup URL."""
@@ -82,7 +80,6 @@ def fetch_writeup(url: str) -> str:
 
     return re.sub(r"\n{3,}", "\n\n", body).strip()
 
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fetch a Kaggle writeup as markdown")
     parser.add_argument("url", help="Kaggle writeup URL")
@@ -104,7 +101,6 @@ def main() -> None:
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
-
 
 if __name__ == "__main__":
     main()

@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: MIT
 """Fetch public kernel scores for a Kaggle competition through the Kaggle SDK.
 
-Usage:
-    python fetch_top_kernel_scores.py <competition-slug-or-url>
-    [--sort ascending|descending|hotness]
+Usage: python fetch_top_kernel_scores.py <competition-slug-or-url> [--sort ascending|descending|hotness]
 
 Outputs CSV lines: ref,score
 """
@@ -13,10 +11,9 @@ Outputs CSV lines: ref,score
 import argparse
 import sys
 
-from constants import DEFAULT_KERNEL_SCORE_PAGE_SIZE
 from kernels.kaggle_client import KaggleKernelClient
 from kernels.kaggle_search import KaggleKernelSearchClient, parse_competition_slug
-
+from constants import DEFAULT_KERNEL_SCORE_PAGE_SIZE
 
 def fetch_kernel_scores(
     competition_slug: str,
@@ -68,19 +65,12 @@ def fetch_kernel_scores(
         )
     return rows
 
-
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Fetch public Kaggle kernel scores through the Kaggle SDK"
-    )
+    parser = argparse.ArgumentParser(description="Fetch public Kaggle kernel scores through the Kaggle SDK")
     parser.add_argument("competition", help="Competition slug or URL")
-    parser.add_argument(
-        "--sort", default="descending", choices=["ascending", "descending", "hotness"]
-    )
+    parser.add_argument("--sort", default="descending", choices=["ascending", "descending", "hotness"])
     parser.add_argument("--page-size", type=int, default=DEFAULT_KERNEL_SCORE_PAGE_SIZE)
-    parser.add_argument(
-        "--max-pages", type=int, default=None, help="Stop after N competition kernel-list pages"
-    )
+    parser.add_argument("--max-pages", type=int, default=None, help="Stop after N competition kernel-list pages")
     args = parser.parse_args()
 
     if args.page_size <= 0:
@@ -90,9 +80,7 @@ def main() -> None:
 
     try:
         slug = parse_competition_slug(args.competition)
-        kernels = fetch_kernel_scores(
-            slug, args.sort, page_size=args.page_size, max_pages=args.max_pages
-        )
+        kernels = fetch_kernel_scores(slug, args.sort, page_size=args.page_size, max_pages=args.max_pages)
         print("ref,score")
         for kernel in kernels:
             score = "" if kernel["score"] is None else kernel["score"]
@@ -100,7 +88,6 @@ def main() -> None:
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
-
 
 if __name__ == "__main__":
     main()

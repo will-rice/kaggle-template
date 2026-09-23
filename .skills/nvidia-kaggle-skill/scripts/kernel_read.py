@@ -6,14 +6,14 @@
 import argparse
 import sys
 
-from kernels.notebook_reader import NotebookReader
-from kernels.paths import default_notebook_cache_dir
 from rich.console import Console
 from rich.markdown import Markdown
+
+from kernels.notebook_reader import NotebookReader
+from kernels.paths import default_notebook_cache_dir
 from runtime import kernel_ref, load_project_env
 
 load_project_env()
-
 
 def read_kernel(
     kernel_ref: str,
@@ -44,26 +44,15 @@ def read_kernel(
     rendered = content.render_readable()
     code_cells = sum(1 for c in content.cells if c.cell_type == "code")
     md_cells = sum(1 for c in content.cells if c.cell_type == "markdown")
-    console.print(
-        "[dim]Cells: "
-        f"{len(content.cells)} ({code_cells} code, {md_cells} markdown) | "
-        f"{len(rendered)} chars[/dim]\n"
-    )
+    console.print(f"[dim]Cells: {len(content.cells)} ({code_cells} code, {md_cells} markdown) | {len(rendered)} chars[/dim]\n")
 
     console.print(Markdown(rendered))
 
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Download and display a Kaggle kernel")
-    parser.add_argument(
-        "kernel_ref", help="Kernel reference or Kaggle code URL (e.g. 'username/kernel-slug')"
-    )
-    parser.add_argument(
-        "--competition-id", default="__unscoped__", help="Competition to scope cache under"
-    )
-    parser.add_argument(
-        "--raw", action="store_true", help="Output raw file content instead of rendered markdown"
-    )
+    parser.add_argument("kernel_ref", help="Kernel reference or Kaggle code URL (e.g. 'username/kernel-slug')")
+    parser.add_argument("--competition-id", default="__unscoped__", help="Competition to scope cache under")
+    parser.add_argument("--raw", action="store_true", help="Output raw file content instead of rendered markdown")
     parser.add_argument("--force", action="store_true", help="Re-download even if cached")
     args = parser.parse_args()
 
@@ -76,9 +65,7 @@ def main() -> None:
 
     normalized_kernel_ref = kernel_ref(args.kernel_ref)
     if "/" not in normalized_kernel_ref:
-        parser.error(
-            "kernel_ref must use Kaggle owner/slug format, for example 'username/kernel-slug'"
-        )
+        parser.error("kernel_ref must use Kaggle owner/slug format, for example 'username/kernel-slug'")
 
     try:
         read_kernel(
@@ -90,7 +77,6 @@ def main() -> None:
     except Exception as exc:
         Console(stderr=True).print(f"[red]Error:[/red] {exc}")
         raise SystemExit(1) from exc
-
 
 if __name__ == "__main__":
     main()

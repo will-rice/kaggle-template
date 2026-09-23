@@ -5,11 +5,11 @@
 import json
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import httpx
-from runtime import kernel_ref as normalize_kernel_ref
-from runtime import require_kaggle_token
+
+from runtime import kernel_ref as normalize_kernel_ref, require_kaggle_token
 
 from .models import CompetitionInfo, KernelMetadata
 
@@ -40,7 +40,7 @@ class KaggleKernelClient:
             except httpx.HTTPStatusError as exc:
                 last_exc = exc
                 if exc.response.status_code == 429 and attempt < self._max_retries - 1:
-                    wait = max(30, self._retry_delay * (2**attempt))
+                    wait = max(30, self._retry_delay * (2 ** attempt))
                     time.sleep(wait)
                 elif attempt < self._max_retries - 1:
                     time.sleep(self._retry_delay * (attempt + 1))
@@ -70,7 +70,7 @@ class KaggleKernelClient:
             except httpx.HTTPStatusError as exc:
                 last_exc = exc
                 if exc.response.status_code == 429 and attempt < self._max_retries - 1:
-                    wait = max(30, self._retry_delay * (2**attempt))
+                    wait = max(30, self._retry_delay * (2 ** attempt))
                     time.sleep(wait)
                 elif attempt < self._max_retries - 1:
                     time.sleep(self._retry_delay * (attempt + 1))
@@ -89,23 +89,22 @@ class KaggleKernelClient:
         normalized_ref = normalize_kernel_ref(kernel_ref)
         if "/" not in normalized_ref:
             raise RuntimeError(
-                f"Invalid kernel ref '{kernel_ref}'. "
-                "Expected 'owner/kernel-slug' or a Kaggle code URL."
+                f"Invalid kernel ref '{kernel_ref}'. Expected 'owner/kernel-slug' or a Kaggle code URL."
             )
         owner, slug = normalized_ref.split("/", 1)
         return owner, slug
 
     def list_kernels(
         self,
-        competition: str | None = None,
+        competition: Optional[str] = None,
         *,
-        search: str | None = None,
-        kernel_type: str | None = None,
-        sort_by: str | None = None,
-        user: str | None = None,
-        dataset: str | None = None,
+        search: Optional[str] = None,
+        kernel_type: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        user: Optional[str] = None,
+        dataset: Optional[str] = None,
         page_size: int = 20,
-        max_pages: int | None = None,
+        max_pages: Optional[int] = None,
     ) -> list[KernelMetadata]:
         """Fetch kernels with full pagination and competition scoping."""
         all_kernels: list[KernelMetadata] = []
@@ -155,10 +154,7 @@ class KaggleKernelClient:
         return all_kernels
 
     def get_kernel_metadata(self, kernel_ref: str) -> dict[str, Any]:
-        """Fetch kernel metadata from /kernels/pull.
-
-        Includes kernelDataSources, modelDataSources, and related fields.
-        """
+        """Fetch kernel metadata from /kernels/pull (includes kernelDataSources, modelDataSources, etc.)."""
         user_name, kernel_slug = self._split_kernel_ref(kernel_ref)
         data = self._get(
             "/kernels/pull",
@@ -173,12 +169,7 @@ class KaggleKernelClient:
         metadata["language"] = blob.get("language")
         meta = data.get("metadata", {})
         if meta:
-            for key in (
-                "kernelDataSources",
-                "modelDataSources",
-                "datasetDataSources",
-                "competitionDataSources",
-            ):
+            for key in ("kernelDataSources", "modelDataSources", "datasetDataSources", "competitionDataSources"):
                 if key in meta:
                     metadata[key] = meta[key]
         return metadata
@@ -245,12 +236,7 @@ class KaggleKernelClient:
             "language": blob.get("language"),
         }
         meta = data.get("metadata", {})
-        for key in (
-            "kernelDataSources",
-            "modelDataSources",
-            "datasetDataSources",
-            "competitionDataSources",
-        ):
+        for key in ("kernelDataSources", "modelDataSources", "datasetDataSources", "competitionDataSources"):
             if key in meta:
                 metadata[key] = meta[key]
 
