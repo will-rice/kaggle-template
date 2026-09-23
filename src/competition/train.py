@@ -58,10 +58,14 @@ def train_competition(
     predictions = [0.0] * len(frame)
 
     for fold in range(config.folds):
-        train_targets = frame.loc[
-            [assigned != fold for assigned in fold_ids],
-            config.target,
-        ].astype(float).tolist()
+        train_targets = (
+            frame.loc[
+                [assigned != fold for assigned in fold_ids],
+                config.target,
+            ]
+            .astype(float)
+            .tolist()
+        )
         model = MeanRegressor()
         model.fit(train_targets)
         held_out = [assigned == fold for assigned in fold_ids]

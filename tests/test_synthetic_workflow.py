@@ -94,8 +94,7 @@ def test_synthetic_init_to_validated_submission(
         == record.manifest
     )
     assert (
-        ExperimentRecord.model_validate_json(experiment_path.read_text(encoding="utf-8"))
-        == record
+        ExperimentRecord.model_validate_json(experiment_path.read_text(encoding="utf-8")) == record
     )
 
     assert record.status == "complete"

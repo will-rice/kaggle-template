@@ -67,8 +67,10 @@ def sha256_file(path: Path) -> str:
 
 def atomic_write_model(path: Path, model: BaseModel) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(f"{path.suffix}.tmp") if path.suffix else path.with_name(
-        f"{path.name}.tmp"
+    temporary = (
+        path.with_suffix(f"{path.suffix}.tmp")
+        if path.suffix
+        else path.with_name(f"{path.name}.tmp")
     )
     payload = model.model_dump(mode="json")
     with temporary.open("w", encoding="utf-8") as handle:
