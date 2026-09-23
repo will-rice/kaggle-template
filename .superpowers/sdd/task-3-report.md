@@ -48,3 +48,22 @@
 
 ## Concerns
 - `SubprocessKaggleClient.submit()` currently returns a minimal structured result because initialization work does not yet require richer Kaggle submission parsing.
+
+## Review Fix
+- Tests:
+  - `uv run pytest tests/test_kaggle_initialize.py -v`
+  - `uv run pytest -v`
+  - `uv run ruff check .`
+  - `git --no-pager diff --check`
+- Results:
+  - `uv run pytest tests/test_kaggle_initialize.py -v` -> `16 passed in 0.06s`
+  - `uv run pytest -v` -> `27 passed in 0.07s`
+  - `uv run ruff check .` -> `All checks passed!`
+  - `git --no-pager diff --check` -> no output
+- Files:
+  - `src/kaggle_template/initialize.py`
+  - `src/kaggle_template/kaggle.py`
+  - `tests/test_kaggle_initialize.py`
+  - `.superpowers/sdd/task-3-report.md`
+- Commit:
+  - `fix: harden kaggle initialization review findings`

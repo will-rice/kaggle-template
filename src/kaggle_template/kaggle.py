@@ -55,12 +55,27 @@ class KaggleClient(Protocol):
 
 class SubprocessKaggleClient:
     def _run(self, arguments: list[str]) -> str:
-        process = subprocess.run(
-            ["kaggle", *arguments],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        command = ["kaggle", *arguments]
+        try:
+            process = subprocess.run(
+                command,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        except FileNotFoundError as exc:
+            joined = " ".join(command)
+            raise KaggleCommandError(
+                f"Failed to execute Kaggle CLI ({joined}): "
+                "the 'kaggle' executable was not found on PATH."
+            ) from exc
+        except OSError as exc:
+            joined = " ".join(command)
+            raise KaggleCommandError(
+                f"Failed to execute Kaggle CLI ({joined}): "
+                f"{exc}. Check local process limits and filesystem permissions."
+            ) from exc
+
         if process.returncode == 0:
             return process.stdout
 
@@ -79,9 +94,12 @@ class SubprocessKaggleClient:
 
     def metadata(self, slug: str) -> CompetitionMetadata:
         output = self._run(["competitions", "list", "--search", slug, "--csv"])
-        rows = list(csv.DictReader(StringIO(output)))
-        if rows and not {"ref", "title"}.issubset(rows[0]):
+        reader = csv.DictReader(StringIO(output))
+        if reader.fieldnames is None:
+            raise KaggleCommandError("Kaggle returned empty competition metadata output")
+        if not {"ref", "title"}.issubset(reader.fieldnames):
             raise KaggleCommandError("Kaggle returned malformed competition metadata")
+        rows = list(reader)
 
         for row in rows:
             if row.get("ref") == slug and row.get("title"):
