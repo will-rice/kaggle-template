@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 from datetime import datetime
 from hashlib import sha256
 from pathlib import Path
@@ -65,17 +66,26 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def atomic_write_model(path: Path, model: BaseModel) -> None:
+def atomic_write_text(path: Path, text: str) -> None:
+    """Write text via a unique sibling temp file, fsync it, then atomically replace path."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = (
-        path.with_suffix(f"{path.suffix}.tmp")
-        if path.suffix
-        else path.with_name(f"{path.name}.tmp")
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
     )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+def atomic_write_model(path: Path, model: BaseModel) -> None:
     payload = model.model_dump(mode="json")
-    with temporary.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
-        handle.write("\n")
-        handle.flush()
-        os.fsync(handle.fileno())
-    temporary.replace(path)
+    atomic_write_text(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")

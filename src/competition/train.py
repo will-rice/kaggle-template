@@ -14,6 +14,7 @@ from kaggle_template.records import (
     ArtifactManifest,
     ExperimentRecord,
     atomic_write_model,
+    atomic_write_text,
     sha256_file,
 )
 from kaggle_template.tracking import RunLogger, TrackingError
@@ -29,9 +30,9 @@ def _git(command: list[str], root: Path) -> str:
     )
     if process.returncode != 0:
         if command == ["rev-parse", "HEAD"]:
-            return "unversioned-synthetic-fixture"
+            return "unversioned"
         if command == ["status", "--porcelain"]:
-            return "synthetic-fixture-dirty"
+            return "status-unavailable"
         detail = (process.stderr or process.stdout).strip()
         raise RuntimeError(f"git {' '.join(command)} failed: {detail}")
     return process.stdout.strip()
@@ -154,5 +155,5 @@ def train_competition(
     atomic_write_model(run_dir / "manifest.json", manifest)
     complete = ExperimentRecord(manifest=manifest, status="complete", failure=None)
     atomic_write_model(record_path, complete)
-    (paths.experiments / "latest").write_text(run_id + "\n", encoding="utf-8")
+    atomic_write_text(paths.experiments / "latest", run_id + "\n")
     return complete

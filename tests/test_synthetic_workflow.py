@@ -99,7 +99,7 @@ def test_synthetic_init_to_validated_submission(
 
     assert record.status == "complete"
     assert record.failure is None
-    assert record.manifest.source_revision == "unversioned-synthetic-fixture"
+    assert record.manifest.source_revision == "unversioned"
     assert record.manifest.dirty_worktree is True
     assert record.manifest.wandb_run_id == logger.run_id
     assert logger.logged_metrics is not None

@@ -155,3 +155,26 @@ def test_predict_infers_identifier_and_preserves_formatting_when_unconfigured(
 
     assert candidate.read_text(encoding="utf-8").splitlines()[1].startswith("007,")
     assert proof.columns == ["id", "target"]
+
+
+def test_train_updates_latest_pointer_atomically(
+    synthetic_config: CompetitionConfig,
+    synthetic_paths: ProjectPaths,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import competition.train
+    from kaggle_template.records import atomic_write_text
+
+    writes: list[tuple[Path, str]] = []
+
+    def recording_write(path: Path, text: str) -> None:
+        writes.append((path, text))
+        atomic_write_text(path, text)
+
+    monkeypatch.setattr(competition.train, "atomic_write_text", recording_write)
+
+    record = train_competition(synthetic_config, synthetic_paths, FakeLogger())
+
+    latest = synthetic_paths.experiments / "latest"
+    assert writes == [(latest, record.manifest.artifact_id + "\n")]
+    assert latest.read_text(encoding="utf-8") == record.manifest.artifact_id + "\n"
