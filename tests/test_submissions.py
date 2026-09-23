@@ -6,6 +6,7 @@ import pytest
 from kaggle_template.records import sha256_file
 from kaggle_template.submissions import (
     assert_submission_unchanged,
+    resolve_submission_identifier,
     validate_submission,
 )
 
@@ -91,3 +92,55 @@ def test_preserves_identifier_formatting_when_identifier_is_configured(
     pd.DataFrame({"id": ["001", "002"], "target": [1.0, 2.0]}).to_csv(candidate, index=False)
     proof = validate_submission(candidate, sample, "synthetic-playground", "id")
     assert proof.columns == ["id", "target"]
+
+
+@pytest.mark.parametrize(
+    "ids",
+    [
+        [11, 10],
+        [10, 12],
+        [10, 10],
+    ],
+)
+def test_infers_first_sample_column_as_identifier_when_unconfigured(
+    files: tuple[Path, Path],
+    ids: list[int],
+) -> None:
+    sample, candidate = files
+    pd.DataFrame({"id": ids, "target": [1.0, 2.0]}).to_csv(candidate, index=False)
+
+    with pytest.raises(ValueError, match="identifier"):
+        validate_submission(candidate, sample, "synthetic-playground", None)
+
+
+def test_inferred_identifier_preserves_formatting_and_accepts_match(tmp_path: Path) -> None:
+    sample = tmp_path / "sample_submission.csv"
+    candidate = tmp_path / "submission.csv"
+    sample.write_text("id,target\n001,0.0\n002,0.0\n", encoding="utf-8")
+    candidate.write_text("id,target\n1,1.0\n2,2.0\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="identifier values or order do not match"):
+        validate_submission(candidate, sample, "synthetic-playground", None)
+
+    candidate.write_text("id,target\n001,1.0\n002,2.0\n", encoding="utf-8")
+    proof = validate_submission(candidate, sample, "synthetic-playground", None)
+    assert proof.columns == ["id", "target"]
+
+
+def test_single_column_sample_is_prediction_only_without_identifier(tmp_path: Path) -> None:
+    sample = tmp_path / "sample_submission.csv"
+    candidate = tmp_path / "submission.csv"
+    sample.write_text("target\n0.0\n0.0\n", encoding="utf-8")
+    candidate.write_text("target\n1.5\n2.5\n", encoding="utf-8")
+
+    proof = validate_submission(candidate, sample, "synthetic-playground", None)
+    assert proof.columns == ["target"]
+
+    candidate.write_text("target\nabc\n2.5\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="finite numbers"):
+        validate_submission(candidate, sample, "synthetic-playground", None)
+
+
+def test_resolve_submission_identifier() -> None:
+    assert resolve_submission_identifier(["id", "target"], "id") == "id"
+    assert resolve_submission_identifier(["row", "target"], None) == "row"
+    assert resolve_submission_identifier(["target"], None) is None

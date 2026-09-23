@@ -7,7 +7,11 @@ from competition.model import MeanRegressor
 from kaggle_template.config import CompetitionConfig
 from kaggle_template.paths import ProjectPaths
 from kaggle_template.records import atomic_write_model
-from kaggle_template.submissions import SubmissionProof, validate_submission
+from kaggle_template.submissions import (
+    SubmissionProof,
+    resolve_submission_identifier,
+    validate_submission,
+)
 
 
 def predict_competition(
@@ -24,9 +28,13 @@ def predict_competition(
         raise FileNotFoundError(f"trained model artifact not found: {model_path}")
     model = MeanRegressor.load(model_path)
     test = load_test(paths.data)
-    sample = load_sample_submission(paths.data)
-    candidate = sample.copy()
-    prediction_columns = [column for column in candidate.columns if column != config.identifier]
+    sample_path = paths.data / "sample_submission.csv"
+    identifier = resolve_submission_identifier(
+        list(pd.read_csv(sample_path, nrows=0).columns) if sample_path.exists() else [],
+        config.identifier,
+    )
+    candidate = load_sample_submission(paths.data, identifier)
+    prediction_columns = [column for column in candidate.columns if column != identifier]
     if len(prediction_columns) != 1:
         raise ValueError("baseline requires exactly one prediction column")
 
@@ -37,7 +45,7 @@ def predict_competition(
 
     proof = validate_submission(
         output,
-        paths.data / "sample_submission.csv",
+        sample_path,
         config.slug,
         config.identifier,
     )

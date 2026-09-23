@@ -139,3 +139,19 @@ def test_predict_requires_resolved_model_artifact(
     missing_model = synthetic_paths.experiments / run_id / "model.json"
     with pytest.raises(FileNotFoundError, match=str(missing_model)):
         predict_competition(synthetic_config, synthetic_paths)
+
+
+def test_predict_infers_identifier_and_preserves_formatting_when_unconfigured(
+    synthetic_config: CompetitionConfig,
+    synthetic_paths: ProjectPaths,
+) -> None:
+    config = synthetic_config.model_copy(update={"identifier": None})
+    (synthetic_paths.data / "sample_submission.csv").write_text(
+        "id,target\n007,0.0\n008,0.0\n", encoding="utf-8"
+    )
+
+    train_competition(config, synthetic_paths, FakeLogger())
+    candidate, proof = predict_competition(config, synthetic_paths)
+
+    assert candidate.read_text(encoding="utf-8").splitlines()[1].startswith("007,")
+    assert proof.columns == ["id", "target"]

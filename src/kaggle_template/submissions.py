@@ -12,6 +12,13 @@ def _identifier_value(value: str) -> str:
     return value
 
 
+def resolve_submission_identifier(columns: list[str], identifier: str | None) -> str | None:
+    """Return the configured identifier, else the first column of a multi-column sample."""
+    if identifier is not None:
+        return identifier
+    return columns[0] if len(columns) > 1 else None
+
+
 class SubmissionProof(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -34,13 +41,11 @@ def validate_submission(
     if not sample.exists():
         raise FileNotFoundError(f"sample submission not found: {sample}")
 
-    if identifier is None:
-        expected = pd.read_csv(sample)
-        actual = pd.read_csv(candidate)
-    else:
-        converters = {identifier: _identifier_value}
-        expected = pd.read_csv(sample, converters=converters)
-        actual = pd.read_csv(candidate, converters=converters)
+    sample_columns = list(pd.read_csv(sample, nrows=0).columns)
+    identifier = resolve_submission_identifier(sample_columns, identifier)
+    converters = {} if identifier is None else {identifier: _identifier_value}
+    expected = pd.read_csv(sample, converters=converters)
+    actual = pd.read_csv(candidate, converters=converters)
 
     if len(actual) != len(expected):
         raise ValueError(f"row count mismatch: expected {len(expected)}, got {len(actual)}")
