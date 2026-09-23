@@ -14,8 +14,9 @@ REQUIRED_WORKFLOWS = {
     "submission.md",
     "evals/evals.json",
 }
-FORBIDDEN_PARTS = {"__pycache__", "data"}
+FORBIDDEN_PARTS = {"__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache", "data"}
 FORBIDDEN_NAMES = {".env", "kaggle.json"}
+FORBIDDEN_SUFFIXES = {".db", ".pyc", ".sqlite", ".sqlite3"}
 EXPECTED_RELATIVE_REFERENCES = {
     "kernel-setup.md",
     "kernels.md",
@@ -39,7 +40,7 @@ def _is_forbidden_file(path: Path) -> bool:
         bool(FORBIDDEN_PARTS & set(path.parts))
         or path.name in FORBIDDEN_NAMES
         or path.name.startswith(".env.")
-        or path.suffix == ".pyc"
+        or path.suffix.lower() in FORBIDDEN_SUFFIXES
     )
 
 
