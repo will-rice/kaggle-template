@@ -1,5 +1,6 @@
+import tomllib
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 import typer
 from pydantic import ValidationError
@@ -8,22 +9,42 @@ from competition.predict import predict_competition
 from competition.train import train_competition
 from kaggle_template.config import CompetitionConfig, load_config
 from kaggle_template.initialize import initialize_competition
-from kaggle_template.kaggle import KaggleError, SubprocessKaggleClient
+from kaggle_template.kaggle import KaggleError, SubmissionResult, SubprocessKaggleClient
 from kaggle_template.paths import ProjectPaths, resolve_project_paths
 from kaggle_template.records import atomic_write_model
 from kaggle_template.submissions import (
     SubmissionProof,
     assert_submission_unchanged,
+    validate_submission,
 )
-from kaggle_template.tracking import WandbRunLogger
+from kaggle_template.tracking import TrackingError, WandbRunLogger
 
 app = typer.Typer(no_args_is_help=True)
 
 
+def _summarize_validation(error: ValidationError) -> str:
+    return "; ".join(
+        f"{'.'.join(str(part) for part in detail['loc']) or 'value'}: {detail['msg']}"
+        for detail in error.errors()
+    )
+
+
 def _load_context(config_path: Path) -> tuple[CompetitionConfig, ProjectPaths]:
-    config = load_config(config_path)
-    paths = resolve_project_paths(Path.cwd(), config.paths)
+    try:
+        config = load_config(config_path)
+        paths = resolve_project_paths(Path.cwd(), config.paths)
+    except tomllib.TOMLDecodeError as error:
+        raise typer.BadParameter(f"invalid TOML: {error}", param_hint="'--config'") from error
+    except ValidationError as error:
+        raise typer.BadParameter(_summarize_validation(error), param_hint="'--config'") from error
+    except ValueError as error:
+        raise typer.BadParameter(str(error), param_hint="'--config'") from error
     return config, paths
+
+
+def _fail(prefix: str, error: Exception) -> NoReturn:
+    typer.echo(f"{prefix}: {error}", err=True)
+    raise typer.Exit(1) from error
 
 
 def _load_submission_proof(proof_path: Path, config: CompetitionConfig) -> SubmissionProof:
@@ -44,11 +65,20 @@ def _assert_submission_is_current(
     candidate: Path,
     sample: Path,
     proof: SubmissionProof,
+    config: CompetitionConfig,
 ) -> None:
     try:
         assert_submission_unchanged(candidate, proof, sample)
+        current = validate_submission(candidate, sample, config.slug, config.identifier)
     except (FileNotFoundError, ValueError) as error:
         raise typer.BadParameter(str(error), param_hint="file") from error
+
+    fields = ("candidate_sha256", "sample_sha256", "row_count", "columns")
+    if any(getattr(current, field) != getattr(proof, field) for field in fields):
+        raise typer.BadParameter(
+            "validation proof does not match current submission content; rerun predict",
+            param_hint="file",
+        )
 
 
 @app.command("competition-init")
@@ -68,8 +98,9 @@ def competition_init(
     try:
         state = initialize_competition(config, paths, SubprocessKaggleClient())
     except KaggleError as error:
-        typer.echo(f"Kaggle error: {error}", err=True)
-        raise typer.Exit(1) from error
+        _fail("Kaggle error", error)
+    except (FileNotFoundError, ValueError) as error:
+        _fail("Initialization error", error)
     typer.echo(f"Initialized {state.slug}: {state.title}")
 
 
@@ -85,7 +116,12 @@ def train(
         project=config.wandb_project,
         config=config.model_dump(mode="json"),
     )
-    record = train_competition(config, paths, logger)
+    try:
+        record = train_competition(config, paths, logger)
+    except TrackingError as error:
+        _fail("W&B error", error)
+    except (FileNotFoundError, ValueError) as error:
+        _fail("Error", error)
     typer.echo(f"Recorded {record.manifest.artifact_id}: {record.manifest.metrics}")
 
 
@@ -97,7 +133,10 @@ def predict(
     ] = Path("configs/competition.toml"),
 ) -> None:
     config, paths = _load_context(config_path)
-    candidate, proof = predict_competition(config, paths)
+    try:
+        candidate, proof = predict_competition(config, paths)
+    except (FileNotFoundError, ValueError) as error:
+        _fail("Error", error)
     typer.echo(f"Validated {candidate} ({proof.row_count} rows)")
 
 
@@ -125,7 +164,7 @@ def submit(
         )
 
     proof = _load_submission_proof(proof_path, config)
-    _assert_submission_is_current(file, paths.data / "sample_submission.csv", proof)
+    _assert_submission_is_current(file, paths.data / "sample_submission.csv", proof, config)
 
     typer.echo(f"Competition: {config.slug}")
     typer.echo(f"File: {file}")
@@ -136,12 +175,18 @@ def submit(
         typer.echo("Submission not sent: pass --confirm to submit.", err=True)
         raise typer.Exit(2)
 
+    result_path = file.with_suffix(".result.json")
     client = SubprocessKaggleClient()
     try:
         result = client.submit(config.slug, file, message)
     except KaggleError as error:
-        typer.echo(f"Kaggle error: {error}", err=True)
-        raise typer.Exit(1) from error
+        failed = SubmissionResult(
+            ref=file.name,
+            status="failed",
+            message=f"{type(error).__name__}: {error}",
+        )
+        atomic_write_model(result_path, failed)
+        _fail("Kaggle error", error)
 
-    atomic_write_model(file.with_suffix(".result.json"), result)
+    atomic_write_model(result_path, result)
     typer.echo(f"Result: {result.status} ({result.ref}) {result.message}")
