@@ -6,6 +6,7 @@ from kaggle_template.config import CompetitionConfig
 from kaggle_template.initialize import initialize_competition
 from kaggle_template.kaggle import CompetitionMetadata, KaggleClient, SubmissionResult
 from kaggle_template.paths import resolve_project_paths
+from kaggle_template.records import ArtifactManifest, ExperimentRecord
 from kaggle_template.submissions import assert_submission_unchanged
 
 
@@ -70,12 +71,33 @@ def test_synthetic_init_to_validated_submission(
     candidate, proof = predict_competition(synthetic_config, paths)
     assert_submission_unchanged(candidate, proof)
 
+    run_dir = paths.experiments / record.manifest.artifact_id
+    manifest_path = run_dir / "manifest.json"
+    experiment_path = run_dir / "experiment.json"
+    oof_path = paths.root / record.manifest.outputs[0]
+    model_path = paths.root / record.manifest.outputs[1]
+    latest_path = paths.experiments / "latest"
+
     assert state.slug == synthetic_config.slug
     assert state.title == "Synthetic Playground"
     assert client.authentications == 1
     assert client.metadata_requests == 1
     assert client.downloads == 1
     assert client.submissions == 0
+
+    assert manifest_path.exists()
+    assert model_path.exists()
+    assert oof_path.exists()
+    assert latest_path.read_text(encoding="utf-8").strip() == record.manifest.artifact_id
+    assert (
+        ArtifactManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))
+        == record.manifest
+    )
+    assert (
+        ExperimentRecord.model_validate_json(experiment_path.read_text(encoding="utf-8"))
+        == record
+    )
+
     assert record.status == "complete"
     assert record.failure is None
     assert record.manifest.source_revision == "unversioned-synthetic-fixture"
