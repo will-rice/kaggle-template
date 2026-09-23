@@ -302,6 +302,38 @@ def test_submit_surfaces_kaggle_errors_and_records_failed_result(
     assert not list(tmp_path.glob("*.tmp"))
 
 
+def test_submit_surfaces_kaggle_errors_even_when_failure_recording_also_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from kaggle_template.cli import app
+
+    config_path = tmp_path / "configs" / "competition.toml"
+    _write_config(config_path)
+    _write_sample_submission(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    candidate = tmp_path / "submission.csv"
+    candidate.write_text("id,target\n1,0.5\n", encoding="utf-8")
+    _write_proof(candidate, tmp_path / "data" / "sample_submission.csv")
+    client = FakeSubmitClient(KaggleError("Could not submit to competition."))
+    monkeypatch.setattr("kaggle_template.cli.SubprocessKaggleClient", lambda: client)
+
+    def fail_atomic_write(*args: object, **kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr("kaggle_template.cli.atomic_write_model", fail_atomic_write)
+
+    result = runner.invoke(app, _submit_args(candidate, config_path))
+
+    assert result.exit_code == 1
+    assert "Kaggle error: Could not submit to competition." in _plain(result.output)
+    assert "Also failed to record failed submission result: disk full" in _plain(result.output)
+    assert "Traceback" not in result.output
+    assert "Result:" not in result.output
+    assert client.calls == 1
+    assert not candidate.with_suffix(".result.json").exists()
+
+
 @pytest.mark.parametrize(
     ("proof_content", "expected_reason"),
     [

@@ -45,7 +45,9 @@ def _validate_data_destination(paths: ProjectPaths) -> None:
 
 
 def _has_data(paths: ProjectPaths) -> bool:
-    return paths.data.is_dir() and any(paths.data.iterdir())
+    if not paths.data.is_dir():
+        return False
+    return any(entry.is_file() and entry.suffix != ".zip" for entry in paths.data.rglob("*"))
 
 
 def _download(config: CompetitionConfig, paths: ProjectPaths, client: KaggleClient) -> None:

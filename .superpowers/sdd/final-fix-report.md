@@ -1,7 +1,7 @@
 # Final Whole-Branch Review — Fix Report
 
-**Status:** DONE. All 13 findings addressed, plus two branch-caused defects found while verifying against the real Kaggle CLI and a failure hidden by the Ruff cache.
-**Range:** `1cbe934..17b0ed5` (6 commits). Every commit has the trailer `Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>`.
+**Status:** DONE. All 13 findings remain addressed, plus the final-review follow-up for zero-exit Kaggle submit failures, failure-record persistence fallback, leftover zip safety, and missing-`git` provenance.
+**Range:** `1cbe934..HEAD` (7 commits). The follow-up commit uses the required trailer `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`.
 
 ## Commits
 
@@ -13,6 +13,7 @@
 | cefbdfb | fix: write latest pointer atomically and record honest provenance | 5, 9, 12, 13 |
 | 152a092 | test: enforce network-free synthetic workflow and document submission contract | 6, 11 |
 | 17b0ed5 | style: apply Ruff Markdown formatting to plan code blocks | pre-existing CI failure hidden by the cache |
+| HEAD | fix: finalize final-review submit and safety edges | final Important follow-up + adjacent cheap minors |
 
 ## Changes by finding
 
@@ -95,6 +96,53 @@ Ruff 0.16.8 formats Python code blocks in Markdown. At `HEAD` (`1cbe934`), `ruff
 ## Concerns
 
 1. A failed submit overwrites any earlier `<candidate>.result.json`, including a previous success from submitting the same file again. Keeping history would need per-attempt files, which is a contract change I did not make.
-2. If writing the failure record itself raises (for example a disk error), that `OSError` replaces the Kaggle error with a traceback. This is unlikely and was left as is.
-3. The Kaggle CLI output format (the `ref` URL shape, the `No competitions found` text, the zip name `<slug>.zip`) is based on reading the installed kaggle 2.2.4 source. It has not been checked against live Kaggle, which was intentionally not contacted. The version bound `<3` limits drift.
-4. The plan file's historical snippets (for example `--unzip` and `unversioned-synthetic-fixture`) now differ from the code. The plan was deliberately not edited beyond the mechanical formatting.
+2. The Kaggle CLI output format (the `ref` URL shape, the `No competitions found` text, the zip name `<slug>.zip`, and the zero-exit submit failure phrases) is based on reading the installed kaggle 2.2.4 source plus the final-review feedback. It has not been checked against live Kaggle, which was intentionally not contacted. The version bound `<3` limits drift.
+3. The plan file's historical snippets (for example `--unzip` and `unversioned-synthetic-fixture`) now differ from the code. The plan was deliberately not edited beyond the mechanical formatting.
+
+## Follow-up addendum (HEAD)
+
+### Additional fixes
+
+- `SubprocessKaggleClient.submit()` now rejects exit-0 stdout that still says `Could not submit to competition...`, `Could not find competition...`, or says nothing at all. Those cases now raise `KaggleCommandError` instead of returning `SubmissionResult(status="submitted")`.
+- `submit` now always surfaces the original Kaggle error first. If writing `<candidate>.result.json` for the failed attempt raises `OSError`, the CLI also prints `Also failed to record failed submission result: ...`, exits 1, and still avoids traceback/success-shaped output.
+- Initialization now ignores leftover `.zip` archives when deciding whether downloaded data is usable, and archive cleanup happens even when Python-side extraction rejects the archive.
+- Training provenance now treats a missing `git` executable the same as unavailable git metadata: `source_revision="unversioned"` and `dirty_worktree=True`.
+
+### RED / GREEN evidence
+
+- **RED:** `uv run pytest tests/test_kaggle_initialize.py -k 'submit_rejects_success_exit_without_successful_submission or archive_path_traversal or ignores_leftover_zip' tests/test_cli.py -k 'failure_recording_also_fails' tests/test_training.py -k 'git_is_unavailable' -q` → `1 failed, 78 deselected` (`FileNotFoundError: git` from `test_train_marks_provenance_unversioned_and_dirty_when_git_is_unavailable`).
+- **GREEN:** `uv run pytest tests/test_kaggle_initialize.py::test_subprocess_submit_rejects_success_exit_without_successful_submission tests/test_kaggle_initialize.py::test_subprocess_download_rejects_archive_path_traversal tests/test_kaggle_initialize.py::test_same_slug_reinit_ignores_leftover_zip_when_data_is_otherwise_missing tests/test_cli.py::test_submit_surfaces_kaggle_errors_even_when_failure_recording_also_fails tests/test_training.py::test_train_marks_provenance_unversioned_and_dirty_when_git_is_unavailable -q` → `7 passed in 0.38s`.
+- **Focused regression suite:** `uv run pytest tests/test_kaggle_initialize.py tests/test_cli.py tests/test_training.py -q` → `79 passed in 0.67s`.
+
+### Validation evidence
+
+```
+$ uv run ruff format --check .
+43 files already formatted
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run mypy
+Success: no issues found in 29 source files
+
+$ WANDB_MODE=offline NO_PROXY='*' no_proxy='*' uv run pytest -q
+138 passed in 0.71s
+
+$ WANDB_MODE=offline NO_PROXY='*' no_proxy='*' uv run pytest --cov=src --cov-report=term-missing -q
+138 passed in 1.00s
+TOTAL 664 stmts, 27 miss, 96% coverage
+
+$ uv run pytest tests/test_synthetic_workflow.py --disable-socket -q
+2 passed in 0.32s
+
+$ uv run pre-commit run -a
+ruff check / ruff format / mypy / pytest Passed
+
+$ uv build
+Successfully built dist/kaggle_template-0.1.0.tar.gz
+Successfully built dist/kaggle_template-0.1.0-py3-none-any.whl
+
+$ git diff --check
+(no output, exit 0)
+```

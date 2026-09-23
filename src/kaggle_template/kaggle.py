@@ -104,7 +104,8 @@ def _extract_archive(archive_path: Path, destination: Path) -> None:
             archive.extractall(root)
     except zipfile.BadZipFile as exc:
         raise KaggleCommandError(f"Kaggle download is not a valid zip: {archive_path}") from exc
-    archive_path.unlink()
+    finally:
+        archive_path.unlink(missing_ok=True)
 
 
 class SubprocessKaggleClient:
@@ -178,4 +179,10 @@ class SubprocessKaggleClient:
                 message,
             ]
         )
-        return SubmissionResult(ref=file.name, status="submitted", message=output.strip())
+        detail = output.strip()
+        lowered = detail.lower()
+        if not detail:
+            raise KaggleCommandError("Kaggle submit command succeeded without any output")
+        if "could not submit to competition" in lowered or "could not find competition" in lowered:
+            raise KaggleCommandError(detail)
+        return SubmissionResult(ref=file.name, status="submitted", message=detail)

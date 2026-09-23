@@ -21,13 +21,20 @@ from kaggle_template.tracking import RunLogger, TrackingError
 
 
 def _git(command: list[str], root: Path) -> str:
-    process = subprocess.run(
-        ["git", *command],
-        cwd=root,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        process = subprocess.run(
+            ["git", *command],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        if command == ["rev-parse", "HEAD"]:
+            return "unversioned"
+        if command == ["status", "--porcelain"]:
+            return "status-unavailable"
+        raise
     if process.returncode != 0:
         if command == ["rev-parse", "HEAD"]:
             return "unversioned"

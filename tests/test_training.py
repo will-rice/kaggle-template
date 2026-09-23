@@ -178,3 +178,19 @@ def test_train_updates_latest_pointer_atomically(
     latest = synthetic_paths.experiments / "latest"
     assert writes == [(latest, record.manifest.artifact_id + "\n")]
     assert latest.read_text(encoding="utf-8") == record.manifest.artifact_id + "\n"
+
+
+def test_train_marks_provenance_unversioned_and_dirty_when_git_is_unavailable(
+    synthetic_config: CompetitionConfig,
+    synthetic_paths: ProjectPaths,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def missing_git(*args: object, **kwargs: object) -> object:
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr("competition.train.subprocess.run", missing_git)
+
+    record = train_competition(synthetic_config, synthetic_paths, FakeLogger())
+
+    assert record.manifest.source_revision == "unversioned"
+    assert record.manifest.dirty_worktree is True

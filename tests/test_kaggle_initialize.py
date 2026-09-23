@@ -398,6 +398,7 @@ def test_subprocess_download_rejects_archive_path_traversal(
         SubprocessKaggleClient().download("synthetic-playground", tmp_path / "data")
 
     assert not (tmp_path / "escaped.csv").exists()
+    assert not (tmp_path / "data" / "synthetic-playground.zip").exists()
 
 
 def test_subprocess_submit_uses_supported_arguments(
@@ -432,6 +433,38 @@ def test_subprocess_submit_uses_supported_arguments(
     assert result == SubmissionResult(
         ref="run.csv", status="submitted", message="Successfully submitted"
     )
+
+
+@pytest.mark.parametrize(
+    ("stdout", "expected"),
+    [
+        (
+            "Could not submit to competition. Please accept the rules first.\n",
+            "Could not submit to competition",
+        ),
+        (
+            "Could not find competition 'synthetic-playground'\n",
+            "Could not find competition",
+        ),
+        ("", "Kaggle submit command succeeded without any output"),
+    ],
+)
+def test_subprocess_submit_rejects_success_exit_without_successful_submission(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    stdout: str,
+    expected: str,
+) -> None:
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args, returncode=0, stdout=stdout, stderr=""
+        ),
+    )
+
+    with pytest.raises(KaggleCommandError, match=expected):
+        SubprocessKaggleClient().submit("synthetic-playground", tmp_path / "run.csv", "baseline")
 
 
 @pytest.mark.parametrize(
@@ -530,3 +563,21 @@ def test_same_slug_reinit_rejects_empty_redownload(
 
     with pytest.raises(FileNotFoundError, match="produced no data"):
         initialize_competition(config, paths, EmptyDownloadClient())
+
+
+def test_same_slug_reinit_ignores_leftover_zip_when_data_is_otherwise_missing(
+    config: CompetitionConfig,
+    paths: ProjectPaths,
+) -> None:
+    initialize_competition(config, paths, FakeKaggleClient())
+    shutil.rmtree(paths.data)
+    paths.data.mkdir()
+    (paths.data / f"{config.slug}.zip").write_text("leftover", encoding="utf-8")
+    client = FakeKaggleClient()
+
+    initialize_competition(config, paths, client)
+
+    assert client.authentications == 1
+    assert client.metadata_requests == 0
+    assert client.downloads == 1
+    assert (paths.data / "train.csv").exists()

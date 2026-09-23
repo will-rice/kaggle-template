@@ -180,13 +180,20 @@ def submit(
     try:
         result = client.submit(config.slug, file, message)
     except KaggleError as error:
+        typer.echo(f"Kaggle error: {error}", err=True)
         failed = SubmissionResult(
             ref=file.name,
             status="failed",
             message=f"{type(error).__name__}: {error}",
         )
-        atomic_write_model(result_path, failed)
-        _fail("Kaggle error", error)
+        try:
+            atomic_write_model(result_path, failed)
+        except OSError as persist_error:
+            typer.echo(
+                f"Also failed to record failed submission result: {persist_error}",
+                err=True,
+            )
+        raise typer.Exit(1) from error
 
     atomic_write_model(result_path, result)
     typer.echo(f"Result: {result.status} ({result.ref}) {result.message}")
