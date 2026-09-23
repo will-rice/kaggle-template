@@ -44,6 +44,16 @@ def _validate_data_destination(paths: ProjectPaths) -> None:
             )
 
 
+def _has_data(paths: ProjectPaths) -> bool:
+    return paths.data.is_dir() and any(paths.data.iterdir())
+
+
+def _download(config: CompetitionConfig, paths: ProjectPaths, client: KaggleClient) -> None:
+    client.download(config.slug, paths.data)
+    if not _has_data(paths):
+        raise FileNotFoundError(f"Kaggle download produced no data in {paths.data}")
+
+
 def initialize_competition(
     config: CompetitionConfig,
     paths: ProjectPaths,
@@ -59,13 +69,14 @@ def initialize_competition(
                 f"repository is initialized for {state.slug!r}; "
                 f"refusing destructive overwrite with {config.slug!r}"
             )
+        if not _has_data(paths):
+            client.authenticate()
+            _download(config, paths, client)
         return state
 
     client.authenticate()
     metadata = client.metadata(config.slug)
-    client.download(config.slug, paths.data)
-    if not paths.data.exists() or not any(paths.data.iterdir()):
-        raise FileNotFoundError(f"Kaggle download produced no data in {paths.data}")
+    _download(config, paths, client)
 
     state = InitState(
         slug=metadata.slug,

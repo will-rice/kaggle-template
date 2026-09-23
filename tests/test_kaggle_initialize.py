@@ -1,4 +1,7 @@
+import shutil
 import subprocess
+import zipfile
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -251,3 +254,279 @@ def test_subprocess_boundary_wraps_run_failures_with_cause(
         SubprocessKaggleClient().authenticate()
 
     assert exc_info.value.__cause__ is raised_error
+
+
+def _completed(stdout: str) -> Callable[..., subprocess.CompletedProcess[str]]:
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args=command, returncode=0, stdout=stdout, stderr="")
+
+    return run
+
+
+REAL_HEADER = "ref,deadline,category,reward,teamCount,userHasEntered,userRank\n"
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        REAL_HEADER
+        + "https://www.kaggle.com/competitions/synthetic-playground-2,2030-01-01 00:00:00,"
+        "Playground,Swag,10,False,\n"
+        + "https://www.kaggle.com/competitions/synthetic-playground,2030-01-01 00:00:00,"
+        "Playground,Swag,100,False,\n",
+        REAL_HEADER + "synthetic-playground,2030-01-01 00:00:00,Playground,Swag,100,True,5\n",
+        "Next Page Token = abc123\n"
+        + REAL_HEADER
+        + "https://www.kaggle.com/competitions/synthetic-playground/,2030-01-01 00:00:00,"
+        "Playground,Swag,100,False,\n",
+    ],
+)
+def test_subprocess_metadata_accepts_real_kaggle_csv_without_title(
+    monkeypatch: pytest.MonkeyPatch,
+    output: str,
+) -> None:
+    monkeypatch.setattr(subprocess, "run", _completed(output))
+
+    metadata = SubprocessKaggleClient().metadata("synthetic-playground")
+
+    assert metadata == CompetitionMetadata(
+        slug="synthetic-playground",
+        title="Synthetic Playground",
+    )
+
+
+def test_subprocess_metadata_prefers_optional_title_column(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        _completed("ref,title\nhttps://www.kaggle.com/c/synthetic-playground,Synthetic Cup\n"),
+    )
+
+    metadata = SubprocessKaggleClient().metadata("synthetic-playground")
+
+    assert metadata.title == "Synthetic Cup"
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        REAL_HEADER
+        + "https://www.kaggle.com/competitions/other-playground,2030-01-01,Playground,Swag,1,False,\n",
+        REAL_HEADER
+        + "https://www.kaggle.com/competitions/synthetic-playground-2,2030-01-01,Playground,"
+        "Swag,1,False,\n",
+        "No competitions found\n",
+    ],
+)
+def test_subprocess_metadata_rejects_unknown_real_slug(
+    monkeypatch: pytest.MonkeyPatch,
+    output: str,
+) -> None:
+    monkeypatch.setattr(subprocess, "run", _completed(output))
+
+    with pytest.raises(KaggleSlugError, match="not present"):
+        SubprocessKaggleClient().metadata("synthetic-playground")
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        "deadline,category\n2030-01-01,Playground\n",
+        "Next Page Token = abc\nwrong,header\nx,y\n",
+    ],
+)
+def test_subprocess_metadata_rejects_malformed_real_output(
+    monkeypatch: pytest.MonkeyPatch,
+    output: str,
+) -> None:
+    monkeypatch.setattr(subprocess, "run", _completed(output))
+
+    with pytest.raises(KaggleCommandError, match="malformed"):
+        SubprocessKaggleClient().metadata("synthetic-playground")
+
+
+def test_subprocess_download_uses_supported_arguments_and_extracts_archive(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    commands: list[list[str]] = []
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        destination = Path(command[command.index("-p") + 1])
+        with zipfile.ZipFile(destination / "synthetic-playground.zip", "w") as archive:
+            archive.writestr("train.csv", "id,target\n1,1.0\n")
+            archive.writestr("nested/test.csv", "id\n2\n")
+        return subprocess.CompletedProcess(args=command, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    destination = tmp_path / "data"
+
+    SubprocessKaggleClient().download("synthetic-playground", destination)
+
+    assert commands == [
+        [
+            "kaggle",
+            "competitions",
+            "download",
+            "synthetic-playground",
+            "-p",
+            str(destination),
+            "--force",
+        ]
+    ]
+    assert (destination / "train.csv").read_text(encoding="utf-8") == "id,target\n1,1.0\n"
+    assert (destination / "nested" / "test.csv").exists()
+    assert not (destination / "synthetic-playground.zip").exists()
+
+
+def test_subprocess_download_rejects_archive_path_traversal(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        destination = Path(command[command.index("-p") + 1])
+        with zipfile.ZipFile(destination / "synthetic-playground.zip", "w") as archive:
+            archive.writestr("../escaped.csv", "x\n")
+        return subprocess.CompletedProcess(args=command, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+    with pytest.raises(KaggleCommandError, match="unsafe archive member"):
+        SubprocessKaggleClient().download("synthetic-playground", tmp_path / "data")
+
+    assert not (tmp_path / "escaped.csv").exists()
+
+
+def test_subprocess_submit_uses_supported_arguments(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    commands: list[list[str]] = []
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        return subprocess.CompletedProcess(
+            args=command, returncode=0, stdout="Successfully submitted\n", stderr=""
+        )
+
+    monkeypatch.setattr(subprocess, "run", run)
+    candidate = tmp_path / "run.csv"
+
+    result = SubprocessKaggleClient().submit("synthetic-playground", candidate, "baseline")
+
+    assert commands == [
+        [
+            "kaggle",
+            "competitions",
+            "submit",
+            "synthetic-playground",
+            "-f",
+            str(candidate),
+            "-m",
+            "baseline",
+        ]
+    ]
+    assert result == SubmissionResult(
+        ref="run.csv", status="submitted", message="Successfully submitted"
+    )
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "error at row 401: service unavailable",
+        "uploaded 14010 bytes before timeout",
+    ],
+)
+def test_subprocess_boundary_does_not_treat_arbitrary_401_text_as_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+    stderr: str,
+) -> None:
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args, returncode=1, stdout="", stderr=stderr
+        ),
+    )
+
+    with pytest.raises(KaggleCommandError) as exc_info:
+        SubprocessKaggleClient().authenticate()
+
+    assert not isinstance(exc_info.value, KaggleCredentialsError)
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "401 Client Error: Unauthorized for url: https://www.kaggle.com/api/v1/competitions/list",
+        "Could not find kaggle.json. Make sure it's located in ~/.kaggle",
+    ],
+)
+def test_subprocess_boundary_maps_real_unauthorized_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    stderr: str,
+) -> None:
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args, returncode=1, stdout="", stderr=stderr
+        ),
+    )
+
+    with pytest.raises(KaggleCredentialsError):
+        SubprocessKaggleClient().authenticate()
+
+
+@pytest.mark.parametrize("data_state", ["missing", "empty"])
+def test_same_slug_reinit_downloads_missing_data_and_keeps_state(
+    config: CompetitionConfig,
+    paths: ProjectPaths,
+    data_state: str,
+) -> None:
+    first_client = FakeKaggleClient()
+    first = initialize_competition(config, paths, first_client)
+    state_path = paths.root / ".kaggle-template" / "init.json"
+    original_state = state_path.read_text(encoding="utf-8")
+    shutil.rmtree(paths.data)
+    if data_state == "empty":
+        paths.data.mkdir()
+
+    client = FakeKaggleClient()
+    second = initialize_competition(config, paths, client)
+
+    assert second == first
+    assert client.authentications == 1
+    assert client.metadata_requests == 0
+    assert client.downloads == 1
+    assert (paths.data / "train.csv").exists()
+    assert state_path.read_text(encoding="utf-8") == original_state
+
+
+def test_same_slug_reinit_with_data_is_noop(
+    config: CompetitionConfig,
+    paths: ProjectPaths,
+) -> None:
+    initialize_competition(config, paths, FakeKaggleClient())
+    client = FakeKaggleClient()
+
+    initialize_competition(config, paths, client)
+
+    assert client.authentications == 0
+    assert client.metadata_requests == 0
+    assert client.downloads == 0
+
+
+def test_same_slug_reinit_rejects_empty_redownload(
+    config: CompetitionConfig,
+    paths: ProjectPaths,
+) -> None:
+    initialize_competition(config, paths, FakeKaggleClient())
+    shutil.rmtree(paths.data)
+
+    with pytest.raises(FileNotFoundError, match="produced no data"):
+        initialize_competition(config, paths, EmptyDownloadClient())

@@ -1,5 +1,7 @@
 import csv
+import re
 import subprocess
+import zipfile
 from io import StringIO
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -53,6 +55,58 @@ class KaggleClient(Protocol):
     def submit(self, slug: str, file: Path, message: str) -> SubmissionResult: ...
 
 
+_CREDENTIAL_PATTERN = re.compile(
+    r"\bunauthori[sz]ed\b|\bcredentials?\b|kaggle\.json|\bKAGGLE_(?:KEY|USERNAME|API_TOKEN)\b",
+    re.IGNORECASE,
+)
+_SLUG_PATTERN = re.compile(r"\b404\b|not found", re.IGNORECASE)
+
+
+def _competition_slug(ref: str) -> str:
+    return ref.strip().rstrip("/").rsplit("/", maxsplit=1)[-1]
+
+
+def _display_title(slug: str) -> str:
+    return " ".join(part.capitalize() for part in slug.split("-"))
+
+
+def _parse_metadata(output: str, slug: str) -> CompetitionMetadata:
+    lines = [line for line in output.splitlines() if line.strip()]
+    if not lines:
+        raise KaggleCommandError("Kaggle returned empty competition metadata output")
+    if lines == ["No competitions found"]:
+        raise KaggleSlugError(f"competition {slug!r} is not present in Kaggle results")
+
+    header_index = next(
+        (index for index, line in enumerate(lines) if line.split(",", maxsplit=1)[0] == "ref"),
+        None,
+    )
+    if header_index is None:
+        raise KaggleCommandError("Kaggle returned malformed competition metadata")
+
+    for row in csv.DictReader(StringIO("\n".join(lines[header_index:]))):
+        if _competition_slug(row.get("ref") or "") == slug:
+            title = (row.get("title") or "").strip() or _display_title(slug)
+            return CompetitionMetadata(slug=slug, title=title)
+
+    raise KaggleSlugError(f"competition {slug!r} is not present in Kaggle results")
+
+
+def _extract_archive(archive_path: Path, destination: Path) -> None:
+    root = destination.resolve()
+    try:
+        with zipfile.ZipFile(archive_path) as archive:
+            for member in archive.namelist():
+                if not (root / member).resolve().is_relative_to(root):
+                    raise KaggleCommandError(
+                        f"refusing unsafe archive member {member!r} in {archive_path}"
+                    )
+            archive.extractall(root)
+    except zipfile.BadZipFile as exc:
+        raise KaggleCommandError(f"Kaggle download is not a valid zip: {archive_path}") from exc
+    archive_path.unlink()
+
+
 class SubprocessKaggleClient:
     def _run(self, arguments: list[str]) -> str:
         command = ["kaggle", *arguments]
@@ -81,11 +135,11 @@ class SubprocessKaggleClient:
 
         detail = (process.stderr or process.stdout).strip()
         lowered = detail.lower()
-        if "401" in detail or "credential" in lowered:
+        if _CREDENTIAL_PATTERN.search(detail):
             raise KaggleCredentialsError(detail)
         if "rules" in lowered:
             raise KaggleRulesError(detail)
-        if "404" in detail or "not found" in lowered:
+        if _SLUG_PATTERN.search(detail):
             raise KaggleSlugError(detail)
         raise KaggleCommandError(detail or "Kaggle command failed without output")
 
@@ -94,18 +148,7 @@ class SubprocessKaggleClient:
 
     def metadata(self, slug: str) -> CompetitionMetadata:
         output = self._run(["competitions", "list", "--search", slug, "--csv"])
-        reader = csv.DictReader(StringIO(output))
-        if reader.fieldnames is None:
-            raise KaggleCommandError("Kaggle returned empty competition metadata output")
-        if not {"ref", "title"}.issubset(reader.fieldnames):
-            raise KaggleCommandError("Kaggle returned malformed competition metadata")
-        rows = list(reader)
-
-        for row in rows:
-            if row.get("ref") == slug and row.get("title"):
-                return CompetitionMetadata(slug=slug, title=row["title"])
-
-        raise KaggleSlugError(f"competition {slug!r} is not present in Kaggle results")
+        return _parse_metadata(output, slug)
 
     def download(self, slug: str, destination: Path) -> None:
         destination.mkdir(parents=True, exist_ok=True)
@@ -113,21 +156,21 @@ class SubprocessKaggleClient:
             [
                 "competitions",
                 "download",
-                "-c",
                 slug,
                 "-p",
                 str(destination),
                 "--force",
-                "--unzip",
             ]
         )
+        archive_path = destination / f"{slug}.zip"
+        if archive_path.exists():
+            _extract_archive(archive_path, destination)
 
     def submit(self, slug: str, file: Path, message: str) -> SubmissionResult:
         output = self._run(
             [
                 "competitions",
                 "submit",
-                "-c",
                 slug,
                 "-f",
                 str(file),

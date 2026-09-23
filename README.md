@@ -11,7 +11,9 @@ A public, modality-agnostic GitHub template instantiated once per Kaggle competi
 5. Run `uv sync --extra dev`.
 6. Run `uv run kaggle-template competition-init <slug>`.
 
-Initialization is idempotent for the configured slug and rejects a different slug without overwriting competition work.
+`uv sync` installs the official `kaggle` CLI as a runtime dependency, so `uv run kaggle ...` and `competition-init` need no separate install. Provide credentials through `~/.kaggle/kaggle.json` or the `KAGGLE_USERNAME`/`KAGGLE_KEY` environment variables; never place them in the repository.
+
+Initialization is idempotent for the configured slug: re-running it is a no-op when data is present and re-downloads only when the data directory is missing or empty. It rejects a different slug without overwriting competition work.
 
 ## Boundaries
 
