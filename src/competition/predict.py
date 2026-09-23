@@ -19,7 +19,10 @@ def predict_competition(
         raise FileNotFoundError("no trained experiment is recorded")
 
     run_id = latest_path.read_text(encoding="utf-8").strip()
-    model = MeanRegressor.load(paths.experiments / run_id / "model.json")
+    model_path = (paths.experiments / run_id / "model.json").resolve()
+    if not model_path.is_file():
+        raise FileNotFoundError(f"trained model artifact not found: {model_path}")
+    model = MeanRegressor.load(model_path)
     test = load_test(paths.data)
     sample = load_sample_submission(paths.data)
     candidate = sample.copy()

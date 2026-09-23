@@ -1,5 +1,8 @@
+import json
 import math
+from pathlib import Path
 
+import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -33,3 +36,18 @@ def validate_oof(
         raise ValueError(f"OOF fold must be between 0 and {folds - 1}")
     if any(expected_folds[row.row_id] != row.fold for row in rows):
         raise ValueError("OOF fold assignment does not match validation definition")
+
+
+def write_oof_rows(rows: list[OOFRow], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        [
+            {
+                "row_id": row.row_id,
+                "fold": row.fold,
+                "prediction": json.dumps(row.prediction),
+                "target": json.dumps(row.target),
+            }
+            for row in rows
+        ]
+    ).to_csv(path, index=False)

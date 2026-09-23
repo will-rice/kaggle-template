@@ -4,14 +4,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-import pandas as pd
-
 from competition.data import load_train
 from competition.model import MeanRegressor
 from competition.validation import assign_folds
 from kaggle_template.config import CompetitionConfig
 from kaggle_template.paths import ProjectPaths
-from kaggle_template.predictions import OOFRow, validate_oof
+from kaggle_template.predictions import OOFRow, validate_oof, write_oof_rows
 from kaggle_template.records import (
     ArtifactManifest,
     ExperimentRecord,
@@ -93,15 +91,7 @@ def train_competition(
     run_dir = paths.experiments / run_id
 
     oof_path = paths.predictions / run_id / "oof.csv"
-    oof_path.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(
-        {
-            "row_id": row_ids,
-            "fold": fold_ids,
-            "prediction": predictions,
-            "target": frame[config.target].astype(float),
-        }
-    ).to_csv(oof_path, index=False)
+    write_oof_rows(rows, oof_path)
 
     final_model = MeanRegressor()
     final_model.fit(frame[config.target].astype(float).tolist())
