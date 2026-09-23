@@ -1,4 +1,5 @@
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -81,7 +82,7 @@ def test_rejects_different_initialized_slug(
         InitState(
             slug="different-competition",
             title="Different",
-            initialized_at="2026-09-23T12:00:00Z",
+            initialized_at=datetime.fromisoformat("2026-09-23T12:00:00+00:00"),
         ).model_dump_json(),
         encoding="utf-8",
     )
@@ -241,7 +242,7 @@ def test_subprocess_boundary_wraps_run_failures_with_cause(
     monkeypatch: pytest.MonkeyPatch,
     raised_error: OSError,
 ) -> None:
-    def raise_run(*args, **kwargs) -> subprocess.CompletedProcess[str]:
+    def raise_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
         raise raised_error
 
     monkeypatch.setattr(subprocess, "run", raise_run)

@@ -8,6 +8,10 @@ from pydantic import BaseModel, ConfigDict
 from kaggle_template.records import sha256_file
 
 
+def _identifier_value(value: str) -> str:
+    return value
+
+
 class SubmissionProof(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -30,9 +34,13 @@ def validate_submission(
     if not sample.exists():
         raise FileNotFoundError(f"sample submission not found: {sample}")
 
-    csv_kwargs = {"dtype": {identifier: str}} if identifier is not None else {}
-    expected = pd.read_csv(sample, **csv_kwargs)
-    actual = pd.read_csv(candidate, **csv_kwargs)
+    if identifier is None:
+        expected = pd.read_csv(sample)
+        actual = pd.read_csv(candidate)
+    else:
+        converters = {identifier: _identifier_value}
+        expected = pd.read_csv(sample, converters=converters)
+        actual = pd.read_csv(candidate, converters=converters)
 
     if len(actual) != len(expected):
         raise ValueError(f"row count mismatch: expected {len(expected)}, got {len(actual)}")

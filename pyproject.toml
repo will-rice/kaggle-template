@@ -26,7 +26,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/kaggle_template"]
+packages = ["src/kaggle_template", "src/competition"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers"
@@ -42,4 +42,4 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-packages = ["kaggle_template"]
+packages = ["kaggle_template", "competition"]
