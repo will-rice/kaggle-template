@@ -15,6 +15,9 @@ dependencies = [
   "wandb>=0.18,<1",
 ]
 
+[project.scripts]
+kaggle-template = "kaggle_template.cli:app"
+
 [project.optional-dependencies]
 dev = [
   "mypy>=1.11,<2",
