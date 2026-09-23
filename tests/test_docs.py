@@ -86,5 +86,11 @@ def test_ci_and_precommit_cover_every_quality_gate() -> None:
         "uv run pytest tests/test_synthetic_workflow.py --disable-socket -v",
     ):
         assert command in workflow
+    for command in (
+        "uv build",
+        "set -- dist/kaggle_template-*.whl",
+        'uv run --isolated --no-project --with "$wheel" kaggle-template --help',
+    ):
+        assert command in workflow
     pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
     assert '"pytest-socket' in pyproject

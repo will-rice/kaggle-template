@@ -38,5 +38,16 @@ jobs:
         run: uv run pytest tests/test_repository_contract.py::test_machine_artifacts_and_secrets_are_ignored -v
       - name: Verify synthetic workflow without network
         run: uv run pytest tests/test_synthetic_workflow.py --disable-socket -v
+      - name: Build package
+        run: uv build
+      - name: Smoke test installed wheel CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -- dist/kaggle_template-*.whl
+          [ -e "$1" ]
+          [ "$#" -eq 1 ]
+          wheel="$1"
+          uv run --isolated --no-project --with "$wheel" kaggle-template --help
       - name: Pre-commit
         run: uv run pre-commit run --all-files

@@ -146,3 +146,42 @@ Successfully built dist/kaggle_template-0.1.0-py3-none-any.whl
 $ git diff --check
 (no output, exit 0)
 ```
+
+## 2026-09-23 CI packaging smoke-test addendum
+
+- Added a contract assertion in `tests/test_docs.py` that CI must include `uv build`, a wheel path capture via `set -- dist/kaggle_template-*.whl`, and an isolated installed-wheel `kaggle-template --help` smoke test.
+- Updated `.github/workflows/ci.yml` to build the sdist and wheel with `uv build`, then run the console entry point from the built wheel via `uv run --isolated --no-project --with "$wheel" kaggle-template --help`.
+- Preserved the existing `.superpowers/sdd` artifacts; no report cleanup/removal was performed.
+
+Validation:
+
+```text
+$ WANDB_MODE=offline NO_PROXY='*' no_proxy='*' uv run pytest tests/test_docs.py::test_ci_and_precommit_cover_every_quality_gate -q
+1 passed in 0.01s
+
+$ uv build
+Successfully built dist/kaggle_template-0.1.0.tar.gz
+Successfully built dist/kaggle_template-0.1.0-py3-none-any.whl
+
+$ set -- dist/kaggle_template-*.whl && [ -e "$1" ] && [ "$#" -eq 1 ] && wheel="$1" && uv run --isolated --no-project --with "$wheel" kaggle-template --help
+Installed 57 packages in 131ms
+Usage: kaggle-template [OPTIONS] COMMAND [ARGS]...
+
+$ WANDB_MODE=offline NO_PROXY='*' no_proxy='*' uv run pytest -q
+143 passed in 0.92s
+
+$ uv run ruff format --check .
+46 files already formatted
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run mypy
+Success: no issues found in 30 source files
+
+$ uv run pre-commit run --all-files
+ruff check / ruff format / mypy / pytest Passed
+
+$ git diff --check
+(no output, exit 0)
+```
