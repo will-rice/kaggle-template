@@ -1242,9 +1242,7 @@ def validate_submission(
             raise ValueError("identifier values or order do not match sample submission")
         if not actual[identifier].is_unique:
             raise ValueError("identifier values must be unique")
-    prediction_columns = [
-        column for column in actual.columns if column != identifier
-    ]
+    prediction_columns = [column for column in actual.columns if column != identifier]
     for column in prediction_columns:
         numeric = pd.to_numeric(actual[column], errors="coerce")
         if numeric.isna().any() or not numeric.map(math.isfinite).all():
@@ -1341,9 +1339,7 @@ def synthetic_paths(
     pd.DataFrame(
         {"id": ["a", "b", "c", "d"], "feature": [0, 1, 2, 3], "target": [1.0, 2.0, 3.0, 4.0]}
     ).to_csv(paths.data / "train.csv", index=False)
-    pd.DataFrame({"id": ["e", "f"], "feature": [4, 5]}).to_csv(
-        paths.data / "test.csv", index=False
-    )
+    pd.DataFrame({"id": ["e", "f"], "feature": [4, 5]}).to_csv(paths.data / "test.csv", index=False)
     pd.DataFrame({"id": ["e", "f"], "target": [0.0, 0.0]}).to_csv(
         paths.data / "sample_submission.csv", index=False
     )
@@ -1395,11 +1391,7 @@ def test_train_and_predict_write_contract_artifacts(
     candidate, proof = predict_competition(synthetic_config, synthetic_paths)
     assert record.status == "complete"
     assert record.manifest.wandb_run_id == "fake-run"
-    assert (
-        synthetic_paths.experiments
-        / record.manifest.artifact_id
-        / "manifest.json"
-    ).exists()
+    assert (synthetic_paths.experiments / record.manifest.artifact_id / "manifest.json").exists()
     assert logger.logged and logger.finished
     assert candidate.exists()
     assert proof.row_count == 2
@@ -1652,9 +1644,11 @@ def train_competition(
     fold_ids = assign_folds(len(frame), config.folds, config.seeds[0])
     predictions = [0.0] * len(frame)
     for fold in range(config.folds):
-        train_targets = frame.loc[
-            [assigned != fold for assigned in fold_ids], config.target
-        ].astype(float).tolist()
+        train_targets = (
+            frame.loc[[assigned != fold for assigned in fold_ids], config.target]
+            .astype(float)
+            .tolist()
+        )
         model = MeanRegressor()
         model.fit(train_targets)
         held_out = [assigned == fold for assigned in fold_ids]
@@ -1701,9 +1695,7 @@ def train_competition(
     rmse = math.sqrt(
         sum(
             (prediction - float(target)) ** 2
-            for prediction, target in zip(
-                predictions, frame[config.target], strict=True
-            )
+            for prediction, target in zip(predictions, frame[config.target], strict=True)
         )
         / len(frame)
     )
@@ -1782,9 +1774,7 @@ def predict_competition(
     test = load_test(paths.data)
     sample = load_sample_submission(paths.data)
     candidate = sample.copy()
-    prediction_columns = [
-        column for column in candidate.columns if column != config.identifier
-    ]
+    prediction_columns = [column for column in candidate.columns if column != config.identifier]
     if len(prediction_columns) != 1:
         raise ValueError("baseline requires exactly one prediction column")
     candidate[prediction_columns[0]] = model.predict(len(test))
@@ -1909,9 +1899,7 @@ def test_submit_displays_fields_and_calls_once_with_confirm(
         columns=["id", "target"],
         validated_at="2026-09-23T12:00:00Z",
     )
-    candidate.with_suffix(".validation.json").write_text(
-        proof.model_dump_json(), encoding="utf-8"
-    )
+    candidate.with_suffix(".validation.json").write_text(proof.model_dump_json(), encoding="utf-8")
     client = FakeSubmitClient()
     monkeypatch.setattr("kaggle_template.cli.SubprocessKaggleClient", lambda: client)
     result = runner.invoke(
@@ -2004,9 +1992,7 @@ def train(
         config=config.model_dump(mode="json"),
     )
     record = train_competition(config, paths, logger)
-    typer.echo(
-        f"Recorded {record.manifest.artifact_id}: {record.manifest.metrics}"
-    )
+    typer.echo(f"Recorded {record.manifest.artifact_id}: {record.manifest.metrics}")
 
 
 @app.command()
@@ -2033,9 +2019,7 @@ def submit(
             f"validation proof not found: {proof_path}",
             param_hint="file",
         )
-    proof = SubmissionProof.model_validate_json(
-        proof_path.read_text(encoding="utf-8")
-    )
+    proof = SubmissionProof.model_validate_json(proof_path.read_text(encoding="utf-8"))
     if proof.competition_slug != config.slug:
         raise typer.BadParameter(
             f"proof is for {proof.competition_slug!r}, not {config.slug!r}",
@@ -2045,9 +2029,7 @@ def submit(
     typer.echo(f"Competition: {config.slug}")
     typer.echo(f"File: {file}")
     typer.echo(f"Message: {message}")
-    typer.echo(
-        f"Validation: validated {proof.row_count} rows at {proof.validated_at.isoformat()}"
-    )
+    typer.echo(f"Validation: validated {proof.row_count} rows at {proof.validated_at.isoformat()}")
     if not confirm:
         typer.echo("Submission not sent: pass --confirm to submit.", err=True)
         raise typer.Exit(2)
