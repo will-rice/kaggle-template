@@ -34,11 +34,16 @@ def predict_competition(
         config.identifier,
     )
     candidate = load_sample_submission(paths.data, identifier)
+    if len(test) != len(candidate):
+        raise ValueError(
+            f"test data row count ({len(test)}) does not match "
+            f"sample submission row count ({len(candidate)})"
+        )
     prediction_columns = [column for column in candidate.columns if column != identifier]
     if len(prediction_columns) != 1:
         raise ValueError("baseline requires exactly one prediction column")
 
-    candidate[prediction_columns[0]] = pd.Series(model.predict(len(test)))
+    candidate[prediction_columns[0]] = model.predict(len(test))
     output = paths.submissions / f"{run_id}.csv"
     output.parent.mkdir(parents=True, exist_ok=True)
     candidate.to_csv(output, index=False)

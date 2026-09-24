@@ -195,5 +195,13 @@ def submit(
             )
         raise typer.Exit(1) from error
 
-    atomic_write_model(result_path, result)
     typer.echo(f"Result: {result.status} ({result.ref}) {result.message}")
+    try:
+        atomic_write_model(result_path, result)
+    except OSError as error:
+        typer.echo(
+            "Kaggle accepted the submission, but local recording failed: "
+            f"{error}. Do not retry automatically.",
+            err=True,
+        )
+        raise typer.Exit(1) from error

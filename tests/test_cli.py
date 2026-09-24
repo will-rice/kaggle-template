@@ -259,6 +259,40 @@ def test_submit_displays_fields_and_calls_once_with_confirm(
     ) == SubmissionResult(ref="submission.csv", status="submitted", message="baseline")
 
 
+def test_submit_reports_acceptance_when_local_result_recording_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from kaggle_template.cli import app
+
+    config_path = tmp_path / "configs" / "competition.toml"
+    _write_config(config_path)
+    _write_sample_submission(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    candidate = tmp_path / "submission.csv"
+    candidate.write_text("id,target\n1,0.5\n", encoding="utf-8")
+    _write_proof(candidate, tmp_path / "data" / "sample_submission.csv")
+    client = FakeSubmitClient()
+    monkeypatch.setattr("kaggle_template.cli.SubprocessKaggleClient", lambda: client)
+
+    def fail_atomic_write(*args: object, **kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr("kaggle_template.cli.atomic_write_model", fail_atomic_write)
+
+    result = runner.invoke(app, _submit_args(candidate, config_path))
+
+    assert result.exit_code == 1
+    assert "Result: submitted (submission.csv) baseline" in _plain(result.output)
+    assert (
+        "Kaggle accepted the submission, but local recording failed: disk full. "
+        "Do not retry automatically."
+    ) in _plain(result.output)
+    assert "Traceback" not in result.output
+    assert client.calls == 1
+    assert not candidate.with_suffix(".result.json").exists()
+
+
 def test_submit_surfaces_kaggle_errors_and_records_failed_result(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

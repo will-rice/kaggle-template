@@ -56,6 +56,8 @@ def train_competition(
     frame = load_train(paths.data)
     if config.target not in frame:
         raise ValueError(f"target column {config.target!r} is absent from train.csv")
+    if config.identifier is not None and config.identifier not in frame:
+        raise ValueError(f"identifier column {config.identifier!r} is absent from train.csv")
 
     row_ids = (
         frame[config.identifier].astype(str).tolist()

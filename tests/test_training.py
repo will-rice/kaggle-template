@@ -127,6 +127,19 @@ def test_wandb_failure_is_persisted_and_raised(
     assert '"status": "incomplete"' in records[0].read_text(encoding="utf-8")
 
 
+def test_train_rejects_missing_identifier_column(
+    synthetic_config: CompetitionConfig,
+    synthetic_paths: ProjectPaths,
+) -> None:
+    config = synthetic_config.model_copy(update={"identifier": "missing-id"})
+
+    with pytest.raises(
+        ValueError,
+        match=r"identifier column 'missing-id' is absent from train\.csv",
+    ):
+        train_competition(config, synthetic_paths, FakeLogger())
+
+
 def test_predict_requires_resolved_model_artifact(
     synthetic_config: CompetitionConfig,
     synthetic_paths: ProjectPaths,

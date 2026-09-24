@@ -105,3 +105,56 @@ No documented `npx` command was executed during implementation or validation.
 
 Validation ran on CPython 3.13.13 while the project supports Python 3.12 and
 newer. No functional or validation concerns remain.
+
+## Final-review fixes (2026-09-24)
+
+### RED
+
+Added focused regression coverage before changing production code:
+
+```bash
+uv run pytest \
+  tests/test_predictions.py::test_predict_rejects_sample_row_count_mismatch \
+  tests/test_training.py::test_train_rejects_missing_identifier_column \
+  tests/test_cli.py::test_submit_reports_acceptance_when_local_result_recording_fails \
+  -v
+```
+
+Result: exit 1; 4 failed. Both prediction mismatch cases failed because no
+descriptive row-count `ValueError` was raised, missing training identifiers
+leaked `KeyError: 'missing-id'`, and accepted submissions whose result write
+failed omitted both the acceptance result and retry warning.
+
+### GREEN
+
+Added the three minimal production fixes and reran the identical command.
+
+Result: exit 0; 4 passed:
+
+```text
+tests/test_predictions.py::test_predict_rejects_sample_row_count_mismatch[1] PASSED
+tests/test_predictions.py::test_predict_rejects_sample_row_count_mismatch[3] PASSED
+tests/test_training.py::test_train_rejects_missing_identifier_column PASSED
+tests/test_cli.py::test_submit_reports_acceptance_when_local_result_recording_fails PASSED
+```
+
+The focused changed-area suite then passed: `49 passed`.
+
+### Final validation
+
+- Focused changed areas: `49 passed`
+- Full pytest: `143 passed`
+- Ruff format: `45 files already formatted`
+- Ruff lint: `All checks passed!`
+- Strict mypy: `Success: no issues found in 29 source files`
+- Pre-commit all-files: Ruff check, Ruff format, mypy, and pytest all passed
+- Build: created `dist/kaggle_template-0.1.0.tar.gz` and
+  `dist/kaggle_template-0.1.0-py3-none-any.whl`
+- Installed-wheel CLI smoke: exit 0 and listed exactly `competition-init`,
+  `train`, `predict`, and `submit`
+- `git diff --check`: passed
+
+The first explicit Ruff lint run found only an unescaped dot in the new
+training test's regular expression (`RUF043`). Changing it to a raw expression
+with `train\.csv` resolved the finding; the regression test and all validation
+were rerun successfully.
