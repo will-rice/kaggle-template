@@ -68,10 +68,7 @@ def test_all_six_skills_have_required_workflow_sections() -> None:
 
 def test_readme_documents_optional_nvidia_skill_installation() -> None:
     content = Path("README.md").read_text(encoding="utf-8")
-    command = (
-        "npx skills@latest add nvidia/skills "
-        "--skill nvidia-kaggle-skill --yes"
-    )
+    command = "npx skills@latest add nvidia/skills --skill nvidia-kaggle-skill --yes"
 
     assert "## Optional NVIDIA Kaggle Skill" in content
     assert "Node.js and npm" in content

@@ -15,6 +15,26 @@ A public, modality-agnostic GitHub template instantiated once per Kaggle competi
 
 Initialization is idempotent for the configured slug: re-running it is a no-op when data is present and re-downloads only when the data directory is missing or empty. It rejects a different slug without overwriting competition work.
 
+## Optional NVIDIA Kaggle Skill
+
+The six skills in `.agents/skills` are included with the template. For
+additional NVIDIA-maintained Kaggle research, kernel, discussion, dataset, and
+submission workflows, install the optional project-scoped skill from NVIDIA's
+verified catalog:
+
+```bash
+npx skills@latest add nvidia/skills --skill nvidia-kaggle-skill --yes
+```
+
+This optional command requires Node.js and npm plus network access to GitHub.
+It is not required for `competition-init`, training, prediction, or submission,
+and the template never runs it automatically. Restart or reload the active
+agent after installation so it discovers the new skill.
+
+Use `npx skills check` to inspect upstream changes and `npx skills update` to
+apply updates deliberately. Installing or updating the skill does not require
+Kaggle credentials and must not run Kaggle downloads, uploads, or submissions.
+
 ## Boundaries
 
 `src/kaggle_template` is the stable framework: typed config, canonical paths, Kaggle operations, records, OOF contracts, submission validation, tracking, and CLI commands.

@@ -61,13 +61,32 @@ README_SKILL_ORDER = [
 
 def test_all_six_skills_have_required_workflow_sections() -> None:
     actual = {path.parent.name for path in Path(".agents/skills").glob("*/SKILL.md")}
-    assert actual == SKILLS
-    for name in actual:
+    assert SKILLS <= actual  # noqa: SIM300
+    for name in SKILLS:
         content = Path(f".agents/skills/{name}/SKILL.md").read_text(encoding="utf-8")
         assert content.startswith("---\nname:")
         assert "## Preconditions" in content
         assert "## Workflow" in content
         assert "## Outputs" in content
+
+
+def test_readme_documents_optional_nvidia_skill_installation() -> None:
+    content = Path("README.md").read_text(encoding="utf-8")
+    command = "npx skills@latest add nvidia/skills --skill nvidia-kaggle-skill --yes"
+
+    assert "## Optional NVIDIA Kaggle Skill" in content
+    assert "Node.js and npm" in content
+    assert command in content
+    assert "npx skills check" in content
+    assert "npx skills update" in content
+    assert "not required for `competition-init`" in content
+    assert not Path(".skills/nvidia-kaggle-skill").exists()
+
+    bootstrap_source = "\n".join(
+        path.read_text(encoding="utf-8") for path in Path("src/kaggle_template").rglob("*.py")
+    )
+    assert "nvidia-kaggle-skill" not in bootstrap_source
+    assert "npx skills" not in bootstrap_source
 
 
 def test_machine_artifacts_and_secrets_are_ignored() -> None:
