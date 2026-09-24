@@ -1,145 +1,107 @@
-# Task 1 Report: Package Foundation, Typed Configuration, and Canonical Paths
+# Task 1 Report: Optional NVIDIA Kaggle Skill Installation
 
-## Scope
-Implemented only Task 1 from `.superpowers/sdd/task-1-brief.md` in the isolated worktree.
+## Outcome
 
-## RED evidence
-### Added failing tests first
-Created:
-- `tests/__init__.py`
-- `tests/test_config_paths.py`
+Replaced the copied NVIDIA Kaggle skill with documentation for an optional,
+canonical project-local installation. The Python package, bootstrap path, CI,
+tests, and package installation do not execute Node, `npx`, or network setup.
+All six repository-owned `.agents/skills` remain intact.
 
-### Failing command
+## RED
+
+Added the repository contract first, including the relaxed core-skill subset
+contract and optional installer documentation/isolation assertions.
+
+Command:
+
 ```bash
-PYTHONPATH=src uv run --with pytest --with pydantic pytest tests/test_config_paths.py -v
+uv run pytest \
+  tests/test_repository_contract.py::test_all_six_skills_have_required_workflow_sections \
+  tests/test_repository_contract.py::test_readme_documents_optional_nvidia_skill_installation \
+  -v
 ```
 
-### Result
-- Exit code: `2`
-- Failure occurred during test collection.
-- Key error:
+Result: exit 1; `1 passed, 1 failed`. The six-skill contract passed. The
+installer contract failed at the expected missing
+`## Optional NVIDIA Kaggle Skill` README section while the vendored directory
+still existed.
+
+## GREEN
+
+Removed the vendored skill and obsolete vendored-source test, removed its Ruff
+exception, and added the specified README section and canonical command:
 
 ```text
-E   ModuleNotFoundError: No module named 'kaggle_template'
+npx skills@latest add nvidia/skills --skill nvidia-kaggle-skill --yes
 ```
 
-This matched the brief's expected initial failure mode.
+Re-ran the focused command. Result: exit 0; `2 passed`.
 
-## GREEN implementation
-### Files created
-- `pyproject.toml`
-- `uv.lock`
-- `configs/competition.toml`
-- `src/kaggle_template/__init__.py`
-- `src/kaggle_template/config.py`
-- `src/kaggle_template/paths.py`
-- `tests/__init__.py`
-- `tests/test_config_paths.py`
+## Files Changed
 
-### Implemented interfaces
-- `MetricDirection`
-- `MetricConfig`
-- `PathsConfig`
-- `CompetitionConfig`
-- `load_config(path: Path) -> CompetitionConfig`
-- `ProjectPaths`
-- `resolve_project_paths(root: Path, config: PathsConfig) -> ProjectPaths`
+- Modified `README.md`
+- Modified `pyproject.toml`
+- Modified `tests/test_repository_contract.py`
+- Ruff-formatted the code sample in
+  `docs/superpowers/plans/2026-09-23-nvidia-kaggle-skill.md`
+- Deleted all 42 tracked files under `.skills/nvidia-kaggle-skill/`
+- Deleted `tests/test_nvidia_kaggle_skill.py`
 
-### Notes
-- Preserved the thin modality-agnostic framework boundary by limiting work to package/config/path foundation only.
-- Used standard-library `tomllib` and `pathlib.Path` plus Pydantic as required.
-- Enforced repository-contained canonical paths with explicit `ValueError` on traversal outside the repository root.
+The committed design spec was unchanged.
 
-## Commands and results
-### Dependency lock, sync, and focused tests
+## Validation
+
+Deletion and isolation checks:
+
 ```bash
-uv lock && uv sync --extra dev && uv run pytest tests/test_config_paths.py -v
+test ! -e .skills/nvidia-kaggle-skill
+test ! -e tests/test_nvidia_kaggle_skill.py
+test "$(find .agents/skills -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" -eq 6
+! rg -n "nvidia-kaggle-skill|npx skills" src
+! rg -n 'extend-exclude.*nvidia-kaggle' pyproject.toml
+git diff --check
 ```
-- Exit code: `0`
-- Result: all 7 focused tests passed.
 
-### Full available test suite
-```bash
-uv run pytest -v
-```
-- Exit code: `0`
-- Result: all 7 available tests passed.
+Result: all exited 0.
 
-### Self-review validation
-```bash
-uv run ruff check src/kaggle_template tests/test_config_paths.py && git --no-pager diff --check
-```
-- First run found one import-order issue in `src/kaggle_template/config.py`.
-- Fixed import order.
-- Re-ran validation successfully.
+Complete validation:
 
-### Re-run after lint fix
-```bash
-uv run pytest tests/test_config_paths.py -v && uv run pytest -v
-```
-- Exit code: `0`
-- Result: focused and full available tests both passed again.
+- `uv run pytest` — passed, 139 tests
+- `uv run ruff format --check .` — passed, 45 files already formatted
+- `uv run ruff check .` — passed
+- `uv run mypy` — passed, 29 source files
+- `uv run pre-commit run --all-files` — all four hooks passed
+- `uv build` — source distribution and one wheel built successfully
+- isolated wheel `kaggle-template --help` — passed; four commands shown
+- `git diff --check` — passed
 
-## Commit
-Created commit:
-- `35cb6f7` — `feat: add typed competition configuration`
+The first complete Ruff/pre-commit attempt correctly found the multiline
+command expression needed Ruff formatting and `SIM300` objected to the
+requirements-prescribed subset expression. I formatted the expression and
+added a targeted `# noqa: SIM300` so `SKILLS <= actual` remains explicit. The
+complete validation was then rerun successfully.
 
-Commit trailer included exactly as requested:
-```text
-Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>
-```
+No documented `npx` command was executed during implementation or validation.
 
 ## Self-review
-- Confirmed tests were written before implementation.
-- Confirmed public names and signatures match the brief.
-- Confirmed optional `target` and `identifier` stay absent/`None` when omitted.
-- Confirmed slug validation rejects uppercase, path traversal-like, spaced, and empty values.
-- Confirmed resolved paths are absolute and blocked from escaping the repository root.
-- Confirmed repository was clean after commit before writing this report.
+
+- Confirmed TDD RED failed for the intended missing feature.
+- Confirmed the optional installer command and maintenance commands match the
+  brief exactly.
+- Confirmed no Python bootstrap or package dependency invokes the installer.
+- Confirmed `.agents/skills` still contains exactly the six core directories
+  and has no diff.
+- Confirmed the NVIDIA design spec has no diff.
+- Confirmed 43 obsolete files were deleted: 42 vendored files plus one test.
+- Confirmed the commit contains the required co-author trailer.
+- Confirmed the worktree was clean after the commit.
+
+## Commit
+
+`3eeb66892f852569daf75351708cbe443127bfab` —
+`refactor: install NVIDIA skill on demand`
 
 ## Concerns
-- Validation ran under the local environment's CPython `3.13.13`; project metadata requires `>=3.12`, so this is compatible, but exact 3.12-only behavior was not separately exercised.
 
-## Review Fix
-### Files
-- `src/competition/__init__.py`
-- `src/kaggle_template/cli.py`
-- `tests/test_config_paths.py`
-- `.superpowers/sdd/task-1-report.md`
-
-### Commands and results
-- `uv run pytest tests/test_config_paths.py -v` → passed, 8 tests
-- `uv build` → passed, built `dist/kaggle_template-0.1.0.tar.gz` and `dist/kaggle_template-0.1.0-py3-none-any.whl`
-- `uv run ruff check src tests` → passed
-- `git diff --check` → passed
-
-### Commit
-- `feat: add minimal package entry points for buildability`
-
-### Self-review
-- Confirmed the declared script target `kaggle_template.cli:app` now imports cleanly.
-- Confirmed the declared `competition` package target now exists as an importable package.
-- Confirmed `ProjectPaths` coverage now asserts every resolved field, not just root and data.
-- Kept the change minimal: no behavioral expansion beyond importability/buildability and coverage.
-
-## Metadata Ordering Ruling
-### Files
-- `docs/superpowers/plans/2026-09-23-kaggle-template.md`
-- `pyproject.toml`
-- `src/competition/__init__.py`
-- `src/kaggle_template/cli.py`
-- `tests/test_config_paths.py`
-- `.superpowers/sdd/task-1-report.md`
-
-### Commands and results
-- `git add docs/superpowers/plans/2026-09-23-kaggle-template.md && git commit -m "docs: correct metadata ordering in plan"` → passed; created the plan-only correction commit
-- `uv run pytest tests/test_config_paths.py -v` → passed; 7 tests passed
-- `uv run pytest -v` → passed; 21 tests passed
-- `uv build` → passed; built `dist/kaggle_template-0.1.0.tar.gz` and `dist/kaggle_template-0.1.0-py3-none-any.whl`
-- `uv run ruff check .` → passed
-- `git --no-pager diff --check` → passed
-- `git add pyproject.toml tests/test_config_paths.py src/competition/__init__.py src/kaggle_template/cli.py .superpowers/sdd/task-1-report.md && git commit --amend --no-edit` → passed; updated the implementation-correction commit
-
-### Commits
-- `docs: correct metadata ordering in plan`
-- `fix: remove premature task 1 metadata targets`
+Validation ran on CPython 3.13.13 while the project supports Python 3.12 and
+newer. No functional or validation concerns remain.
