@@ -1,42 +1,102 @@
-# NVIDIA Kaggle Skill Vendoring Design
+# NVIDIA Kaggle Skill Installation Design
 
 ## Purpose
 
-Vendor the complete `nvidia-kaggle-skill` into `.skills/nvidia-kaggle-skill` so repositories created from this template have a portable, self-contained Kaggle research and operations skill in the requested compatibility location.
+Offer NVIDIA's official `nvidia-kaggle-skill` as an optional, project-scoped
+extension without vendoring its implementation into this GitHub template.
+Repositories created from the template keep the six built-in competition
+skills and can install or update NVIDIA's skill directly from its maintained
+catalog when they need the additional research and Kaggle operations
+workflows.
 
 ## Chosen Approach
 
-Copy the complete skill directory rather than using a symlink or a wrapper, and preserve the authored snapshot byte-for-byte:
+Document NVIDIA's canonical non-interactive project installation command:
 
-- A full copy works in clones, archives, GitHub templates, and environments that do not follow symlinks during skill discovery.
-- A wrapper would depend on an external user installation and would not include the referenced scripts and workflow documents.
-- The vendored copy is limited to authored source files. Generated caches, local databases, downloaded data, credentials, and Python bytecode are excluded.
-- Vendored authored files are not normalized to satisfy repository style. They are restored exactly from `/Users/will/.agents/skills/nvidia-kaggle-skill` and protected by `.skills/nvidia-kaggle-skill/SOURCE_MANIFEST.sha256`.
+```bash
+npx skills@latest add nvidia/skills --skill nvidia-kaggle-skill --yes
+```
 
-The existing six core workflows remain under `.agents/skills` unchanged. The NVIDIA skill is additive under `.skills`; it does not alter their names, behavior, or exact-count contract.
+Installation is an explicit user action after creating a repository from the
+template. It is not part of `competition-init`, `uv sync`, CI, or any Python
+package entry point.
 
-## Contents
+This approach is preferred because:
 
-`.skills/nvidia-kaggle-skill` contains:
+- `nvidia/skills` is NVIDIA's verified catalog and is updated from the
+  maintained product repository.
+- `skills@latest` satisfies NVIDIA's requirement for a current installer and
+  avoids known linking problems in `skills` 1.5.15 and earlier.
+- Project scope lets compatible agents discover the skill for this competition
+  without making it available to unrelated repositories.
+- The template no longer owns copied NVIDIA source, checksum manifests,
+  third-party lint exceptions, or manual refresh work.
 
-- `SKILL.md` with the workflow catalog, prerequisites, safety requirements, and runtime dependencies
-- focused workflow documents for kernels, kernel setup, writeups, research briefs, submissions, and evaluations
-- the complete `scripts/` tree required by those workflows
-- `SOURCE_MANIFEST.sha256` with deterministic SHA-256 entries for each authored vendored file except the manifest itself
+The installation intentionally follows the current NVIDIA catalog rather than
+pinning a source commit. Users who require a frozen external dependency may
+pin the installer or source separately, but the template does not claim that
+the optional skill is reproducible or available offline.
 
-All internal relative links and script paths must resolve inside the vendored directory.
+## Repository Changes
+
+- Remove `.skills/nvidia-kaggle-skill` and its source manifest.
+- Remove vendored-source integrity tests and the Ruff exclusion that existed
+  only for the copied source.
+- Add an optional NVIDIA skill section to `README.md` with Node.js/npm and
+  network prerequisites, the install command, `npx skills check`, and
+  `npx skills update`.
+- Preserve the six built-in `.agents/skills` as the stable template-provided
+  core. Repository tests assert that those six names are present rather than
+  forbidding additional project-installed skills.
+- Do not add a wrapper script or a Node dependency manifest for one documented
+  installer command.
+
+The installer may create agent-specific links or project skill files according
+to the current `skills` CLI and detected agents. Those generated installation
+artifacts are external-tool output, not template-owned source.
+
+## User Flow
+
+1. Create a repository from the template and complete the normal Python
+   bootstrap.
+2. Optionally install Node.js/npm if they are not already available.
+3. Run the documented `npx skills@latest add ... --yes` command from the
+   repository root.
+4. Reload or restart the active agent so it discovers the new skill.
+5. Use `npx skills check` to inspect available updates and
+   `npx skills update` to apply them deliberately.
+
+Failure to install the optional skill does not affect configuration,
+`competition-init`, training, prediction, submission, or the six built-in
+skills. Installer, network, catalog, or permission failures remain visible to
+the user; the template does not convert them into successful setup.
 
 ## Safety and Validation
 
-- Do not copy `KAGGLE_API_TOKEN`, environment files, local databases, downloaded datasets, caches, or bytecode.
-- Preserve the skill's explicit confirmation requirements for submissions and dataset uploads.
-- Add repository-contract tests that verify the skill entry point, every relative Markdown/script reference named by `SKILL.md`, the exact manifest membership and hashes, the absence of generated files, and `ast.parse` success for every vendored Python file.
-- Keep strict Ruff, mypy, pytest, and pre-commit checks for repository-owned code. Ruff excludes only `.skills/nvidia-kaggle-skill`; mypy remains scoped to `src` and `tests`.
-- Validate the vendored external snapshot with manifest, syntax, reference, secret, and source-comparison checks instead of rewriting external source to match repository style.
+- Never run the installer automatically during bootstrap, tests, CI, or
+  package installation.
+- Never run Kaggle API, download, upload, or submission workflows while
+  installing the skill.
+- Keep credentials outside the repository. Installing the skill does not
+  require or inspect Kaggle credentials.
+- Preserve the framework rule that submissions require explicit confirmation;
+  the optional skill's own external-action safeguards apply when it is used.
+- Add repository-contract tests for the exact documented installer command,
+  optional prerequisites and update instructions, absence of the vendored
+  directory, presence of all six core skills, and absence of NVIDIA-specific
+  behavior from the Python bootstrap.
+- Keep Ruff, mypy, pytest, pre-commit, package-build, and installed-CLI checks
+  unchanged for repository-owned code.
+
+Tests do not execute `npx` or access the network. They validate the template
+contract, while NVIDIA and the `skills` CLI own installer behavior.
 
 ## Non-Goals
 
-- Do not duplicate the NVIDIA skill into `.agents/skills`.
-- Do not modify the six core competition skills.
-- Do not integrate NVIDIA-specific behavior into the modality-agnostic framework package.
-- Do not run Kaggle API, download, upload, or submission workflows as part of vendoring.
+- No vendored NVIDIA source or checksum manifest.
+- No automatic or mandatory NVIDIA skill installation.
+- No global skill installation or modification of a user's home directory.
+- No Node.js runtime dependency for the Python framework.
+- No NVIDIA-specific framework APIs, CLI commands, or competition behavior.
+- No guarantee that the optional upstream skill remains byte-identical across
+  installations.
