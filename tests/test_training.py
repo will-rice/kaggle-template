@@ -1,0 +1,209 @@
+import csv
+import json
+from pathlib import Path
+
+import pytest
+
+from competition.predict import predict_competition
+from competition.train import train_competition
+from competition.validation import assign_folds
+from kaggle_template.config import CompetitionConfig
+from kaggle_template.paths import ProjectPaths
+from kaggle_template.predictions import OOFRow, validate_oof
+from kaggle_template.tracking import TrackingError
+
+
+class FakeLogger:
+    def __init__(self, failure: TrackingError | None = None) -> None:
+        self._run_id = "fake-run"
+        self.failure = failure
+        self.logged = False
+        self.finished = False
+
+    @property
+    def run_id(self) -> str | None:
+        return self._run_id
+
+    def log(self, metrics: dict[str, float], artifacts: list[Path]) -> None:
+        if self.failure:
+            raise self.failure
+        assert "rmse" in metrics
+        assert all(path.exists() for path in artifacts)
+        self.logged = True
+
+    def finish(self) -> None:
+        self.finished = True
+
+
+def test_train_and_predict_write_contract_artifacts(
+    synthetic_config: CompetitionConfig,
+    synthetic_paths: ProjectPaths,
+) -> None:
+    logger = FakeLogger()
+
+    record = train_competition(synthetic_config, synthetic_paths, logger)
+    candidate, proof = predict_competition(synthetic_config, synthetic_paths)
+
+    assert record.status == "complete"
+    assert record.manifest.wandb_run_id == "fake-run"
+    assert (synthetic_paths.experiments / record.manifest.artifact_id / "manifest.json").exists()
+    assert logger.logged and logger.finished
+    assert candidate.exists()
+    assert proof.row_count == 2
+
+
+def test_train_persists_oof_rows_using_public_contract(
+    synthetic_config: CompetitionConfig,
+    synthetic_paths: ProjectPaths,
+) -> None:
+    record = train_competition(synthetic_config, synthetic_paths, FakeLogger())
+
+    oof_path = synthetic_paths.predictions / record.manifest.artifact_id / "oof.csv"
+    csv_rows = list(csv.DictReader(oof_path.open(encoding="utf-8")))
+    raw_rows = [
+        OOFRow.model_validate(
+            {
+                "row_id": row["row_id"],
+                "fold": int(row["fold"]),
+                "prediction": json.loads(row["prediction"]),
+                "target": json.loads(row["target"]),
+            }
+        )
+        for row in csv_rows
+    ]
+
+    expected_folds = dict(
+        zip(
+            ["a", "b", "c", "d"],
+            assign_folds(4, synthetic_config.folds, synthetic_config.seeds[0]),
+            strict=True,
+        )
+    )
+    source_targets = {"a": 1.0, "b": 2.0, "c": 3.0, "d": 4.0}
+    validate_oof(raw_rows, expected_folds, synthetic_config.folds)
+
+    assert [row["prediction"] for row in csv_rows] == [
+        json.dumps(
+            [
+                sum(
+                    target
+                    for other_row_id, target in source_targets.items()
+                    if expected_folds[other_row_id] != expected_folds[row["row_id"]]
+                )
+                / sum(
+                    1
+                    for other_row_id in source_targets
+                    if expected_folds[other_row_id] != expected_folds[row["row_id"]]
+                )
+            ]
+        )
+        for row in csv_rows
+    ]
+    assert [row["target"] for row in csv_rows] == [
+        "[1.0]",
+        "[2.0]",
+        "[3.0]",
+        "[4.0]",
+    ]
+    assert [row.prediction for row in raw_rows] == [
+        json.loads(cell) for cell in [row["prediction"] for row in csv_rows]
+    ]
+    assert [row.target for row in raw_rows] == [[1.0], [2.0], [3.0], [4.0]]
+
+
+def test_wandb_failure_is_persisted_and_raised(
+    synthetic_config: CompetitionConfig,
+    synthetic_paths: ProjectPaths,
+) -> None:
+    with pytest.raises(RuntimeError, match="wandb unavailable"):
+        train_competition(
+            synthetic_config,
+            synthetic_paths,
+            FakeLogger(TrackingError("wandb unavailable")),
+        )
+
+    records = list(synthetic_paths.experiments.glob("*/experiment.json"))
+    assert len(records) == 1
+    assert '"status": "incomplete"' in records[0].read_text(encoding="utf-8")
+
+
+def test_train_rejects_missing_identifier_column(
+    synthetic_config: CompetitionConfig,
+    synthetic_paths: ProjectPaths,
+) -> None:
+    config = synthetic_config.model_copy(update={"identifier": "missing-id"})
+
+    with pytest.raises(
+        ValueError,
+        match=r"identifier column 'missing-id' is absent from train\.csv",
+    ):
+        train_competition(config, synthetic_paths, FakeLogger())
+
+
+def test_predict_requires_resolved_model_artifact(
+    synthetic_config: CompetitionConfig,
+    synthetic_paths: ProjectPaths,
+) -> None:
+    run_id = "missing-model"
+    latest_path = synthetic_paths.experiments / "latest"
+    latest_path.parent.mkdir(parents=True, exist_ok=True)
+    latest_path.write_text(run_id + "\n", encoding="utf-8")
+
+    missing_model = synthetic_paths.experiments / run_id / "model.json"
+    with pytest.raises(FileNotFoundError, match=str(missing_model)):
+        predict_competition(synthetic_config, synthetic_paths)
+
+
+def test_predict_infers_identifier_and_preserves_formatting_when_unconfigured(
+    synthetic_config: CompetitionConfig,
+    synthetic_paths: ProjectPaths,
+) -> None:
+    config = synthetic_config.model_copy(update={"identifier": None})
+    (synthetic_paths.data / "sample_submission.csv").write_text(
+        "id,target\n007,0.0\n008,0.0\n", encoding="utf-8"
+    )
+
+    train_competition(config, synthetic_paths, FakeLogger())
+    candidate, proof = predict_competition(config, synthetic_paths)
+
+    assert candidate.read_text(encoding="utf-8").splitlines()[1].startswith("007,")
+    assert proof.columns == ["id", "target"]
+
+
+def test_train_updates_latest_pointer_atomically(
+    synthetic_config: CompetitionConfig,
+    synthetic_paths: ProjectPaths,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import competition.train
+    from kaggle_template.records import atomic_write_text
+
+    writes: list[tuple[Path, str]] = []
+
+    def recording_write(path: Path, text: str) -> None:
+        writes.append((path, text))
+        atomic_write_text(path, text)
+
+    monkeypatch.setattr(competition.train, "atomic_write_text", recording_write)
+
+    record = train_competition(synthetic_config, synthetic_paths, FakeLogger())
+
+    latest = synthetic_paths.experiments / "latest"
+    assert writes == [(latest, record.manifest.artifact_id + "\n")]
+    assert latest.read_text(encoding="utf-8") == record.manifest.artifact_id + "\n"
+
+
+def test_train_marks_provenance_unversioned_and_dirty_when_git_is_unavailable(
+    synthetic_config: CompetitionConfig,
+    synthetic_paths: ProjectPaths,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def missing_git(*args: object, **kwargs: object) -> object:
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr("competition.train.subprocess.run", missing_git)
+
+    record = train_competition(synthetic_config, synthetic_paths, FakeLogger())
+
+    assert record.manifest.source_revision == "unversioned"
+    assert record.manifest.dirty_worktree is True
