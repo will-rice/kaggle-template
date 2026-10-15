@@ -35,7 +35,6 @@ jobs:
         env:
           WANDB_MODE: offline
           NO_PROXY: "*"
-          no_proxy: "*"
         run: uv run pytest --cov=src --cov-report=term-missing
       - name: Verify ignore contract
         run: uv run pytest tests/test_repository_contract.py::test_machine_artifacts_and_secrets_are_ignored -v
