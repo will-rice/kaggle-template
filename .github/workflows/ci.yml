@@ -9,6 +9,9 @@ permissions:
 
 jobs:
   validate:
+    # The Main ruleset requires a check named exactly `ci`. Keep this name
+    # and avoid a matrix, which would append values like `ci (3.12)`.
+    name: ci
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -32,7 +35,6 @@ jobs:
         env:
           WANDB_MODE: offline
           NO_PROXY: "*"
-          no_proxy: "*"
         run: uv run pytest --cov=src --cov-report=term-missing
       - name: Verify ignore contract
         run: uv run pytest tests/test_repository_contract.py::test_machine_artifacts_and_secrets_are_ignored -v

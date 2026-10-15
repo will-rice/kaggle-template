@@ -74,6 +74,7 @@ def test_framework_boundary_detects_every_competition_import_form(
 def test_ci_and_precommit_cover_every_quality_gate() -> None:
     precommit = Path(".pre-commit-config.yaml").read_text(encoding="utf-8")
     workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "\n    name: ci\n" in workflow, "Main ruleset requires check `ci`"
     for required in ("ruff-check", "ruff-format", "mypy", "pytest"):
         assert required in precommit
     for command in (
