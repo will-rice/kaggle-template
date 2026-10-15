@@ -1,0 +1,15 @@
+slug = "synthetic-playground"
+seeds = [17]
+folds = 3
+wandb_project = "synthetic-playground"
+
+[metric]
+name = "rmse"
+direction = "minimize"
+
+[paths]
+data = "data"
+reports = "reports"
+experiments = "artifacts/experiments"
+predictions = "artifacts/predictions"
+submissions = "artifacts/submissions"

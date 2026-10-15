@@ -1,0 +1,29 @@
+# Python and tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+dist/
+build/
+
+# Credentials and local environment
+.env
+.env.*
+!.env.example
+kaggle.json
+
+# Competition and machine artifacts
+.kaggle-template/
+data/
+checkpoints/
+artifacts/
+predictions/
+submissions/
+wandb/
+*.ckpt
+*.pt
+*.pth

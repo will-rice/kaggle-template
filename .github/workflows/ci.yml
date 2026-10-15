@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.22"
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify lock and install
+        run: uv sync --extra dev --locked
+      - name: Ruff format
+        run: uv run ruff format --check .
+      - name: Ruff lint
+        run: uv run ruff check .
+      - name: Type check
+        run: uv run mypy
+      - name: Tests and docs checks
+        env:
+          WANDB_MODE: offline
+          NO_PROXY: "*"
+          no_proxy: "*"
+        run: uv run pytest --cov=src --cov-report=term-missing
+      - name: Verify ignore contract
+        run: uv run pytest tests/test_repository_contract.py::test_machine_artifacts_and_secrets_are_ignored -v
+      - name: Verify synthetic workflow without network
+        run: uv run pytest tests/test_synthetic_workflow.py --disable-socket -v
+      - name: Build package
+        run: uv build
+      - name: Smoke test installed wheel CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -- dist/kaggle_template-*.whl
+          [ -e "$1" ]
+          [ "$#" -eq 1 ]
+          wheel="$1"
+          uv run --isolated --no-project --with "$wheel" kaggle-template --help
+      - name: Pre-commit
+        run: uv run pre-commit run --all-files

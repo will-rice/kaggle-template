@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/will-rice/kaggle-template/schemas/artifact-manifest.schema.json",
+  "title": "ArtifactManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_id",
+    "competition_slug",
+    "created_at",
+    "command",
+    "resolved_config",
+    "source_revision",
+    "dirty_worktree",
+    "inputs",
+    "outputs",
+    "checksums",
+    "metrics",
+    "metric_direction"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_id": {"type": "string", "minLength": 1},
+    "competition_slug": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "command": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "resolved_config": {"type": "object"},
+    "source_revision": {"type": "string", "minLength": 1},
+    "dirty_worktree": {"type": "boolean"},
+    "seed": {"type": ["integer", "null"]},
+    "fold": {"type": ["integer", "null"]},
+    "inputs": {"type": "array", "items": {"type": "string"}},
+    "outputs": {"type": "array", "items": {"type": "string"}},
+    "checksums": {"type": "object", "additionalProperties": {"type": "string"}},
+    "metrics": {"type": "object", "additionalProperties": {"type": "number"}},
+    "metric_direction": {"enum": ["minimize", "maximize"]},
+    "wandb_run_id": {"type": ["string", "null"]}
+  }
+}
