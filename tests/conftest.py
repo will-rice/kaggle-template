@@ -2,9 +2,16 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+import typer.rich_utils
 
 from kaggle_template.config import CompetitionConfig
 from kaggle_template.paths import ProjectPaths, resolve_project_paths
+
+
+@pytest.fixture(autouse=True)
+def plain_cli_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep CLI output unstyled; Typer forces Rich styling when GITHUB_ACTIONS is set."""
+    monkeypatch.setattr(typer.rich_utils, "FORCE_TERMINAL", False)
 
 
 @pytest.fixture
