@@ -9,6 +9,9 @@ permissions:
 
 jobs:
   validate:
+    # The Main ruleset requires a check named exactly `ci`. Keep this name
+    # and avoid a matrix, which would append values like `ci (3.12)`.
+    name: ci
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
